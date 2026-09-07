@@ -1,0 +1,8 @@
+node_modules/
+dist-netlify/
+.netlify/
+.sites-runtime/
+backups/
+.env*
+!.env.netlify.example
+*.tsbuildinfo

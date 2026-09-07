@@ -1,0 +1,29 @@
+[build]
+  command = "npm run build:netlify"
+  publish = "dist-netlify"
+  functions = "netlify/functions"
+[build.environment]
+  NODE_VERSION = "22"
+[functions]
+  node_bundler = "esbuild"
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "same-origin"
+    X-Frame-Options = "DENY"
+    X-Robots-Tag = "noindex, nofollow"
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "no-cache"
+[[headers]]
+  for = "/api/*"
+  [headers.values]
+    Cache-Control = "no-store"
+[dev]
+  framework = "#custom"
+  command = "npx vite --config vite.netlify.config.ts --port 5173"
+  targetPort = 5173
+  port = 8888
+  publish = "dist-netlify"

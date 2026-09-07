@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {"plugins": [], "incremental": false},
+  "include": ["app/**/*.ts", "app/**/*.tsx", "components/**/*.ts", "components/**/*.tsx", "hooks/**/*.ts", "lib/**/*.ts", "adapters/**/*.ts", "netlify/**/*.ts", "standalone/**/*.tsx", "db/index.ts", "vite.netlify.config.ts"],
+  "exclude": ["node_modules", "dist", "dist-netlify", ".sites-runtime", ".next"]
+}
