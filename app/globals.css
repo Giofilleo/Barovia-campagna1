@@ -589,3 +589,6 @@ h1,h2,h3{color:#e0dee1!important;}.heading-dot,.empty-ornament,.caption-rule{dis
 .icon-btn,.btn,.text-button { transition:background-color .16s,border-color .16s,color .16s,opacity .16s; }
 .tag-chip,.coin-chip { animation:barovia-pop-in .18s ease-out; }
 .draft-recovery,.supply-reminder,.table-result,.graph-detail { animation:barovia-rise-in .22s ease-out; }
+/* --- «Questo luogo ha una sua mappa» --- */
+.own-map { display:flex;flex-direction:column;gap:9px;padding:14px 16px;border:1px solid #43414f;border-left:3px solid #8fa9a0;border-radius:4px;background:#191d1c; }
+.own-map .help-text { margin:0;font-size:12px; }

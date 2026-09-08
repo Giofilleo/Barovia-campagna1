@@ -372,4 +372,45 @@ await test('Un ingresso conserva l’icona e l’immagine del suo segnalino',asy
  assert.equal(after.data.x,.44);assert.equal(after.data.y,.51,'trascinare un ingresso ne salva la posizione');
  assert.equal(after.data.markerIcon,'skull');assert.equal(after.data.ratio,1.3);assert.equal(after.data.widthMiles,.02);
 });
+
+await test('Un luogo può ricevere una mappa propria, e rinunciarvi, senza essere ricreato',async()=>{
+ // Un luogo con appunti e collegamenti, come quelli già nella campagna.
+ const compagno=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('note','Appunto collegato',['*'])});
+ const creato=await request('/api/records',{method:'POST',cookie:dm.cookie,data:{...record('pin','Locanda del Ballo Sanguinario',['*'],{x:.31,y:.44,markerIcon:'town',category:'insediamento',tags:['vallaki']}),body:'Il proprietario nasconde qualcosa.',links:[compagno.data.id]}});
+ const prima=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===creato.data.id);
+ assert.equal(prima.kind,'pin');assert.equal(prima.data.map,'');
+ // Diventa un ingresso: cambia solo il tipo.
+ const convertito=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...prima,kind:'map',data:{...prima.data,widthMiles:.05,ratio:1.4}}});
+ assert.equal(convertito.status,200);
+ const dopo=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===creato.data.id);
+ assert.equal(dopo.id,prima.id,'resta la stessa voce, con lo stesso identificativo');
+ assert.equal(dopo.kind,'map');
+ assert.equal(dopo.title,'Locanda del Ballo Sanguinario');assert.equal(dopo.body,'Il proprietario nasconde qualcosa.');
+ assert.deepEqual(dopo.links,[compagno.data.id],'i collegamenti restano');
+ assert.deepEqual(dopo.data.tags,['vallaki'],'le etichette restano');
+ assert.equal(dopo.data.markerIcon,'town');assert.equal(dopo.data.category,'insediamento');
+ assert.equal(dopo.data.x,.31);assert.equal(dopo.data.y,.44,'resta dov’era sulla mappa');
+ assert.equal(dopo.data.parent,'','ed è ancora sulla mappa principale');
+ assert.equal(dopo.data.widthMiles,.05);
+ // E può tornare un luogo normale.
+ const tornato=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...dopo,kind:'pin'}});
+ assert.equal(tornato.status,200);
+ const finale=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===creato.data.id);
+ assert.equal(finale.kind,'pin');assert.equal(finale.data.map,'');assert.equal(finale.data.category,'insediamento');
+ assert.deepEqual(finale.links,[compagno.data.id]);
+});
+await test('La trasformazione è riservata al DM, limitata a luoghi e mappe, e non lascia voci orfane',async()=>{
+ const suo=await request('/api/records',{method:'POST',cookie:lyria.cookie,data:record('pin','Rifugio di Lyria',['*'],{x:.2,y:.2})});
+ const voce=(await request('/api/state',{cookie:lyria.cookie})).data.records.find(r=>r.id===suo.data.id);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:lyria.cookie,data:{...voce,kind:'map'}})).status,403,'un giocatore non può dare una mappa a un luogo');
+ const nota=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.kind==='note');
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...nota,kind:'map'}})).status,400,'solo luoghi e mappe possono scambiarsi');
+ // Una mappa che contiene ancora qualcosa non può tornare un luogo semplice.
+ const madre=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('map','Cantina',['*'],{x:.5,y:.5,parent:'',widthMiles:.01})});
+ await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('pin','Botte sfondata',['*'],{x:.4,y:.4,map:madre.data.id})});
+ const dentro=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===madre.data.id);
+ const rifiuto=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...dentro,kind:'pin'}});
+ assert.equal(rifiuto.status,400);assert.match(rifiuto.data.error,/contiene ancora/);
+ assert.equal((await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===madre.data.id).kind,'map','la mappa resta intatta');
+});
 await closeDatabase();
