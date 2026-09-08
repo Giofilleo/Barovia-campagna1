@@ -529,3 +529,63 @@ h1,h2,h3{color:#e0dee1!important;}.heading-dot,.empty-ornament,.caption-rule{dis
 .table-result .eyebrow { display:block;font-size:11px;letter-spacing:.13em;color:#a89870;margin-bottom:6px; }
 .table-result strong { font-family:Georgia,serif;font-weight:400;font-size:17px;line-height:1.5;color:#eae4d5; }
 .table-card-actions { display:flex;flex-wrap:wrap;gap:9px;margin-top:auto; }
+
+/* ================================================================
+   Ingressi come luoghi, spostamento dei segnalini, aspetto, movimento
+   ================================================================ */
+/* --- Un ingresso è un luogo con un distintivo --- */
+.map-pin.is-door>span { border-color:#9aa8a2;background:#1c2422e8;color:#cfe0d8; }
+.map-pin.is-door:hover>span,.map-pin.is-door.hovered>span { border-color:#cfe0d8;background:#26332e; }
+.door-badge { position:absolute;right:-4px;bottom:-4px;display:flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#2f4a3f;border:1px solid #9aa8a2;color:#dff0e6; }
+.map-pin>span { position:relative; }
+.map-pin.is-door>b { border-color:#46534d;background:#16211de6;color:#dfe6e2; }
+/* --- Etichette al passaggio del puntatore --- */
+.map-pin>b.on-hover { opacity:0;pointer-events:none; }
+.map-pin:hover>b.on-hover,.map-pin.hovered>b.on-hover,.map-pin:focus-visible>b.on-hover { opacity:1; }
+/* --- Strumento «sposta» --- */
+.map-stage.tool-move { cursor:default; }
+.map-pin.movable { cursor:grab; }
+.map-pin.movable:active,.map-pin.moving { cursor:grabbing; }
+.map-pin.moving { z-index:9; }
+.map-pin.moving>span { border-color:#e0a8b4;box-shadow:0 0 0 3px #c1516c44,0 6px 16px #00000066; }
+/* --- Pannello dell'aspetto dei segnalini --- */
+.look-panel { position:absolute;left:60px;top:16px;z-index:8;width:270px;display:flex;flex-direction:column;gap:13px;padding:15px 16px;border:1px solid #71737a;border-radius:6px;background:#131416f2;box-shadow:0 6px 22px #00000066; }
+.look-panel h3 { display:flex;align-items:center;gap:9px;font-size:17px;color:#e2e2e6; }
+.look-panel .field { display:flex;flex-direction:column;gap:8px;font-size:13px;color:#b9bcc4; }
+.look-panel .field b { float:right;font-weight:500;color:#d8dae0;font-variant-numeric:tabular-nums; }
+.look-panel .choice { width:100%; }
+.look-actions { display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:9px; }
+.look-panel .help-text { font-size:12px;margin:0; }
+@media(max-width:900px){ .look-panel { left:auto;right:10px;top:auto;bottom:12px;width:250px; } }
+
+/* ================================================================
+   Movimento: appena percettibile, e assente per chi lo disattiva
+   ================================================================ */
+@keyframes barovia-view-in { from { opacity:0;transform:translateY(6px); } to { opacity:1;transform:none; } }
+@keyframes barovia-fade-in { from { opacity:0; } to { opacity:1; } }
+@keyframes barovia-rise-in { from { opacity:0;transform:translateY(8px); } to { opacity:1;transform:none; } }
+@keyframes barovia-pop-in { from { opacity:0;transform:scale(.7); } to { opacity:1;transform:none; } }
+/* Il passaggio da una sezione all'altra */
+.main-shell>:not(.topbar):not(.campaign-status) { animation:barovia-view-in .26s ease-out; }
+/* Il cambio di mappa: la tela si rimonta e si dissolve dentro */
+.map-canvas { animation:barovia-fade-in .3s ease-out; }
+.map-canvas>img { animation:barovia-fade-in .45s ease-out; }
+/* I segnalini entrano in scena senza sobbalzi: la posizione non è animata,
+   così lo zoom e il trascinamento restano immediati. */
+.map-pin,.party-marker { animation:barovia-pop-in .24s ease-out; }
+.map-pin>span,.map-pin>b { transition:background-color .16s,border-color .16s,color .16s,opacity .16s,box-shadow .16s; }
+.map-pin:hover>span { transform:translateY(-2px); }
+.map-pin>span { transition:transform .16s ease-out,background-color .16s,border-color .16s,box-shadow .16s; }
+.map-pin.moving>span,.map-pin.movable:active>span { transform:none; }
+/* Nella cronologia il gruppo scivola da una tappa all'altra, ma non durante la riproduzione */
+.party-marker.smooth { transition:left .4s ease-in-out,top .4s ease-in-out; }
+.route-dot { animation:barovia-pop-in .3s ease-out;transform-box:fill-box;transform-origin:center; }
+/* Pannelli e finestre sovrapposte alla mappa */
+.look-panel,.ruler-panel,.map-layers,.route-map-hint,.map-instruction { animation:barovia-rise-in .2s ease-out; }
+/* Righe ed elenchi: il colore cambia con un respiro, non di scatto */
+.news-row,.location-row,.event-row,.linked-entry,.entry-card,.revision-row,.bestiary-row,.tag-filter>button,.tag-suggestions>button,.detail-tags>button,.nav-item,.folder-sidebar>button { transition:background-color .16s,border-color .16s,color .16s,box-shadow .18s,transform .16s; }
+.entry-card:hover,.table-card:hover { transform:translateY(-2px); }
+.news-row:hover,.linked-entry:hover,.location-row:hover { transform:translateX(2px); }
+.icon-btn,.btn,.text-button { transition:background-color .16s,border-color .16s,color .16s,opacity .16s; }
+.tag-chip,.coin-chip { animation:barovia-pop-in .18s ease-out; }
+.draft-recovery,.supply-reminder,.table-result,.graph-detail { animation:barovia-rise-in .22s ease-out; }
