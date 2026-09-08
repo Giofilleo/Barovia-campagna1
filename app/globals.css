@@ -281,3 +281,90 @@ h1,h2,h3{color:#e0dee1!important;}.heading-dot,.empty-ornament,.caption-rule{dis
 @media(max-width:1200px){.route-toolbar{align-items:flex-start;flex-direction:column;}.route-toolbar>div:first-child>span{max-width:100%;}.supply-summary{grid-template-columns:repeat(2,1fr);}.supply-total{grid-column:1/-1;border-right:0;border-bottom:1px solid #414252;display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;}.supply-total>strong{grid-column:1;grid-row:2/4;}.supply-total>p{grid-column:2;grid-row:1;}.supply-total [data-slot=progress]{grid-column:2;grid-row:2;margin-top:16px;}.supply-total>.row-between{grid-column:2;grid-row:3;}.supply-layout{grid-template-columns:1fr;}.dm-overview>div{padding:17px 14px;flex-direction:column;align-items:flex-start;gap:5px;}.combat-header{align-items:flex-start;flex-wrap:wrap;}.combat-toolbar>label{margin-left:0;}.dm-note-grid{grid-template-columns:1fr;}.dice-layout{grid-template-columns:1fr 1fr;}}
 @media(max-width:1020px){.route-details{grid-column:1/-1;}.route-point-list{max-height:220px;}.selected-event-panel{grid-column:1/-1;}.route-details .route-metrics{max-width:400px;}.route-details .form-grid{max-width:400px;}.map-aside .selected-event-panel .btn{max-width:300px;margin-right:12px;}.dm-tabs{flex-wrap:wrap;}.dice-layout{grid-template-columns:1fr;}}
 @media(max-width:767px){.route-toolbar{padding:12px;}.route-toolbar-actions{gap:5px;}.route-toolbar .icon-btn{width:32px;height:33px;}.route-toolbar .btn{font-size:12px;}.route-node{width:33px;height:33px;font-size:13px;}.route-add-node{width:28px;height:28px;}.route-add-node svg{width:15px;height:15px;}.route-map-hint{bottom:12px;font-size:12px;max-width:94%;padding:9px 10px;}.timeline-v2{flex-wrap:wrap;gap:13px;}.timeline-v2 .timeline-track{min-width:210px;}.timeline-v2 .timeline-track>.row-between:last-child{flex-wrap:wrap;}.gallery-edit-grid{grid-template-columns:1fr 1fr;}.gallery-edit-card>img{height:120px;}.single-image-field{padding:13px;gap:13px;}.single-image-field>img,.image-placeholder{width:61px;height:61px;}.single-image-field .btn{font-size:13px;white-space:normal;text-align:left;}.rich-text-toolbar{gap:7px;}.rich-text-toolbar>label{flex-basis:100%;padding:3px 0;}.rich-text-input{min-height:220px;}.read-gallery img{height:135px;}.lightbox{padding:16px!important;}.surface-panel{padding:20px;}.supply-summary{grid-template-columns:repeat(2,minmax(0,1fr));}.supply-total{display:block;padding:22px;}.supply-total>strong{font-size:40px;}.supply-metric{padding:19px 8px;gap:8px;}.supply-metric>strong{font-size:29px;}.supply-metric>small{font-size:12px;line-height:1.6;}.supply-metric>span{font-size:13px;}.supply-metric>svg{width:22px;}.consume-controls{flex-wrap:wrap;}.consume-controls>.field{max-width:100%;flex:1;}.consume-controls>.btn{font-size:13px;}.supply-layout{gap:18px;}.supply-facts>div{font-size:13px;}.dm-tabs{display:flex;flex-wrap:wrap;gap:8px;width:100%;}.dm-tabs [data-slot=tabs-trigger]{padding:9px 11px;font-size:13px;}.dm-overview{gap:10px;}.dm-overview>div{padding:16px 12px;}.dm-overview span{font-size:12px;line-height:1.6;}.dm-overview strong{font-size:28px;}.dm-note-card{padding:18px;}.dm-note-title h2{font-size:23px;}.combat-header{padding:21px;}.combat-header h2{font-size:25px;}.combat-header>div:last-child{width:100%;justify-content:flex-end;}.combat-toolbar{gap:11px;}.combat-toolbar>.btn{font-size:13px;}.combat-toolbar>label{font-size:13px;}.combat-table td{padding:14px 8px;}.hp-controls{gap:7px;}.combat-name{font-size:14px;}.combat-note{max-width:150px;}.faction-emblem{display:none;}.faction-card{padding:21px 17px;gap:18px;}.faction-info>p{font-size:13px;margin-bottom:24px;}.reputation-labels{font-size:12px;}.faction-info>.help-text{font-size:12px;line-height:1.6;}.reputation-score{min-width:63px;}.reputation-score strong{font-size:28px;}.inline-reputation [data-slot=slider-thumb]{width:22px;height:25px;}.route-details>.choice{font-size:14px;}.route-details .form-grid{grid-template-columns:1fr 1fr;}}
+
+/* ================================================================
+   Atlante a tutta altezza, zoom sul puntatore e grafo trascinabile
+   ================================================================ */
+/* --- Intestazione dell'Atlante: titolo, schede, orologio e pulsante su una riga sola --- */
+.map-header { display:flex;align-items:center;gap:22px;flex:0 0 auto;padding-bottom:13px;border-bottom:1px solid #262932;margin-bottom:14px; }
+.map-header-title { min-width:0; }
+.map-header-title .eyebrow { font-size:12px;letter-spacing:.19em;margin-bottom:3px; }
+.map-header-title h1 { font-size:27px;line-height:1.1;color:#e6e6e8;white-space:nowrap; }
+.map-header .atlas-tabs { height:auto!important; }
+.map-header .atlas-tabs [data-slot=tabs-trigger] { padding:4px 0 7px!important; }
+.map-header .map-note { font-size:12px;color:#92949a;white-space:nowrap; }
+.map-header .map-clock { margin-left:auto;font-size:12px;color:#a4a6ab;white-space:nowrap; }
+.map-header>.btn { flex:0 0 auto; }
+/* --- Struttura a tutta altezza: scorrono i pannelli, non la pagina --- */
+@media(min-width:1021px) and (min-height:560px){
+ .main-shell { height:100svh;min-height:0;display:flex;flex-direction:column;overflow:hidden; }
+ .main-shell>.topbar,.main-shell>.campaign-status { flex:0 0 auto; }
+ .main-shell>:not(.topbar):not(.campaign-status) { flex:1 1 auto;min-height:0;overflow:auto; }
+ .main-shell>.map-workspace { display:flex;flex-direction:column;overflow:hidden;padding-bottom:20px; }
+ .map-workspace>.route-toolbar { flex:0 0 auto; }
+ .map-layout { flex:1 1 auto;min-height:0;grid-template-rows:minmax(0,1fr); }
+ .map-main { min-height:0; }
+ .map-stage { flex:1 1 auto;height:auto;min-height:180px; }
+ .map-bottom,.timeline-player { flex:0 0 auto; }
+ .map-aside { max-height:none;min-height:0;overflow:auto;overscroll-behavior:contain; }
+ .event-list { max-height:none; }
+ .selected-event-panel { position:sticky;bottom:0;z-index:3;background:#22212b; }
+ /* Il grafo occupa lo spazio rimasto invece di un'altezza fissa */
+ .main-shell>.graph-page { display:flex;flex-direction:column;overflow:hidden; }
+ .graph-page>.page-heading { flex:0 0 auto;margin-bottom:18px; }
+ .graph-page>.collection-toolbar { flex:0 0 auto; }
+ .graph-page>.graph-surface { flex:1 1 auto;height:auto;min-height:240px; }
+ .graph-page>.page-footnote { flex:0 0 auto; }
+}
+/* --- Grafo: trascinamento, zoom e indicatore di scala --- */
+.graph-svg { cursor:grab;touch-action:none;user-select:none; }
+.graph-svg:active { cursor:grabbing; }
+.graph-node { cursor:pointer; }
+.graph-scale { position:absolute;left:18px;bottom:15px;font-size:12px;letter-spacing:.1em;color:#cdced1;background:#1b1d20db;border:1px solid #4a4e59;border-radius:3px;padding:3px 7px;pointer-events:none; }
+.graph-legend { left:86px; }
+.page-footnote>svg { vertical-align:-2px;margin-right:5px;color:#8a8d95; }
+/* --- Adattamenti per schermi stretti --- */
+@media(max-width:900px){
+ .map-header { flex-wrap:wrap;gap:12px 18px;padding-bottom:12px; }
+ .map-header-title { width:100%; }
+ .map-header-title h1 { font-size:29px;white-space:normal; }
+ .map-header .map-clock { font-size:12px; }
+ .map-header>.btn { min-height:35px;font-size:12px;padding:8px 11px; }
+ .graph-legend { left:20px;bottom:46px; }
+}
+@media(max-width:767px){
+ .map-header .desktop-inline { display:none; }
+ .map-header-title h1 { font-size:31px; }
+}
+/* --- Suggerimento sulla mappa al posto della barra inferiore --- */
+.map-hint { position:absolute;right:14px;bottom:12px;max-width:52%;text-align:right;font-size:12px;color:#b7b9bf;background:#1b1d20cc;border:1px solid #3a3d45;border-radius:3px;padding:4px 8px;pointer-events:none;z-index:6; }
+/* --- Finestre basse: recupera altezza per la mappa --- */
+@media(min-width:1021px) and (min-height:560px) and (max-height:840px){
+ .main-shell>.map-workspace { padding-top:14px;padding-bottom:14px; }
+ .campaign-status { min-height:0;padding-top:6px;padding-bottom:6px; }
+ .map-header { gap:18px;padding-bottom:9px;margin-bottom:10px; }
+ .map-header-title .eyebrow { display:none; }
+ .map-header-title h1 { font-size:23px; }
+ .timeline-player { padding:11px 16px;gap:14px; }
+ .timeline-track [data-slot=slider] { margin:8px 0; }
+ .map-hint { font-size:12px;opacity:.82;bottom:9px;right:11px; }
+}
+/* --- Finestre basse: pannello evento e barra di navigazione piu compatti --- */
+@media(min-height:560px) and (max-height:840px){
+ .selected-event-panel { padding:13px 15px; }
+ .selected-event-panel h3 { font-size:18px; }
+ .selected-event-panel>p { margin:4px 0 11px; }
+ .selected-event-panel>.btn { margin-bottom:7px; }
+ .selected-event-panel .help-text { display:none; }
+ .aside-title { padding:13px 16px 11px; }
+ .brand-header { padding:16px 21px 13px!important; }
+ .brand-header .brand-seal { width:34px;height:39px; }
+ .campaign-label { padding:8px 25px 2px; }
+ .campaign-label>strong { font-size:15px;margin-top:3px; }
+ .campaign-sidebar [data-slot=sidebar-group] { padding:4px 14px; }
+ .nav-item { min-height:34px!important;padding:7px 13px!important; }
+ .nav-item[data-active=true] { padding:6px 12px!important; }
+ .nav-label { margin-bottom:2px; }
+ .sidebar-bottom { padding:10px 20px 0!important; }
+ .party-avatars { padding-bottom:12px; }
+}
