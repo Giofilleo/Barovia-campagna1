@@ -21,7 +21,7 @@ if(process.env.TEST_DATABASE==='postgres'){
  const {PostgresDatabase}=await import(resolve('.sites-runtime/tests/postgres.mjs'));
  const pg=new PGlite({parsers:{20:Number}});
  await pg.exec("CREATE ROLE anon; CREATE ROLE authenticated; CREATE SCHEMA storage; CREATE TABLE storage.buckets (id text PRIMARY KEY,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);");
- await pg.exec(await readFile('supabase/migrations/0001_barovia.sql','utf8'));
+ for(const file of (await readdir('supabase/migrations')).filter(f=>f.endsWith('.sql')).sort())await pg.exec(await readFile('supabase/migrations/'+file,'utf8'));
  const executor=db=>({async query(sql,values){const r=await db.query(sql,values);return{rows:r.rows,changes:r.affectedRows??r.rows.length};},async transaction(work){return db.transaction(tx=>work(executor(tx)));}});
  DB=new PostgresDatabase(executor(pg));closeDatabase=()=>pg.close();
 }else{
@@ -30,7 +30,7 @@ if(process.env.TEST_DATABASE==='postgres'){
 }
 const files=new Map();const BUCKET={async put(id,bytes,opts){files.set(id,{bytes,opts});},async get(id){const f=files.get(id);return f?{body:new Blob([f.bytes]).stream()}:null;},async delete(id){files.delete(id);}};
 const env={DB,BUCKET};const base='https://campaign.example';
-async function request(path,{method='GET',data,cookie,origin=base,form}={}){const headers={Origin:origin,'CF-Connecting-IP':'203.0.113.8'};if(cookie)headers.Cookie=cookie;if(data)headers['Content-Type']='application/json';const response=await handleCampaign(new Request(base+path,{method,headers,body:form|| (data?JSON.stringify(data):undefined)}),env);const result=response.headers.get('content-type')?.includes('application/json')?await response.json():await response.arrayBuffer();return {response,status:response.status,data:result,cookie:response.headers.get('set-cookie')?.split(';')[0]};}
+async function request(path,{method='GET',data,cookie,origin=base,form,extra}={}){const headers={Origin:origin,'CF-Connecting-IP':'203.0.113.8',...(extra||{})};if(cookie)headers.Cookie=cookie;if(data)headers['Content-Type']='application/json';const response=await handleCampaign(new Request(base+path,{method,headers,body:form|| (data?JSON.stringify(data):undefined)}),env);const result=response.headers.get('content-type')?.includes('application/json')?await response.json():await response.arrayBuffer();return {response,status:response.status,data:result,cookie:response.headers.get('set-cookie')?.split(';')[0]};}
 const key='Integration-only-key-983!';
 let dm,lyria,nier,secretId,noteId,photoId;
 const record=(kind,title,audience=['*'],data={})=>({id:crypto.randomUUID(),kind,title,body:'Contenuto di prova',audience,data,links:[],folder:'',version:0});
@@ -189,5 +189,162 @@ await test('Legacy supply values retain rations while water no longer limits aut
  const current=(await request('/api/state',{cookie:dm.cookie})).data;assert.equal(current.supplies.water,undefined);
  assert.equal((await request('/api/supplies',{method:'POST',cookie:dm.cookie,data:{action:'consume',days:3,version:current.suppliesVersion}})).status,200);
  assert.equal((await request('/api/state',{cookie:dm.cookie})).data.supplies.rations,0);
+});
+
+// --- Conservazione dei dati già salvati nella campagna --------------------------
+// Questi controlli esistono per una ragione sola: la campagna online contiene già
+// eventi con il percorso disegnato a mano. Nessuna modifica futura deve poterli
+// cancellare passando dal salvataggio di una voce.
+await test('Un evento con percorso disegnato sopravvive al salvataggio e a una modifica successiva',async()=>{
+ const path=[{x:.31,y:.42},{x:.355,y:.447},{x:.372,y:.468},{x:.4,y:.5}];
+ const input=record('event','Verso Vallaki',['*'],{x:.4,y:.5,minutes:4321,category:'luogo',path,routeVersion:2,curve:true});
+ const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:input});assert.equal(created.status,200);
+ const stored=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.deepEqual(stored.data.path,path,'gli snodi del percorso devono tornare identici');
+ assert.equal(stored.data.routeVersion,2);assert.equal(stored.data.curve,true);
+ assert.equal(stored.data.minutes,4321);assert.equal(stored.data.x,.4);assert.equal(stored.data.y,.5);
+ const renamed=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...stored,title:'Verso Vallaki, di notte'}});
+ assert.equal(renamed.status,200);
+ const after=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.deepEqual(after.data.path,path,'rinominare un evento non deve toccare il percorso');
+ assert.equal(after.data.curve,true);assert.equal(after.data.routeVersion,2);assert.equal(after.data.minutes,4321);
+});
+await test('Luoghi, personaggi, sessioni, tesoro e fazioni conservano ogni campo',async()=>{
+ const cases=[
+  ['pin',{x:.788,y:.619,category:'insediamento',markerIcon:'town',markerImage:''}],
+  ['character',{subtitle:'mercante di Vallaki',status:'In vita',image:''}],
+  ['journal',{session:3,date:'2026-08-30'}],
+  ['treasure',{quantity:7,value:12.5,holder:'Ismark',category:'pozione'}],
+  ['faction',{reputation:-14,subtitle:'Referente: Madam Eva'}],
+ ];
+ for(const [kind,data] of cases){
+  const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record(kind,'Prova '+kind,['*'],data)});
+  assert.equal(created.status,200,kind);
+  const stored=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+  for(const [field,value] of Object.entries(data))assert.deepEqual(stored.data[field],value,kind+'.'+field);
+  const again=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...stored,title:'Prova '+kind+' modificata'}});
+  assert.equal(again.status,200,kind);
+  const after=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+  for(const [field,value] of Object.entries(data))assert.deepEqual(after.data[field],value,kind+'.'+field+' dopo la modifica');
+ }
+});
+await test('Le immagini collegate a una voce restano collegate dopo una modifica',async()=>{
+ const created=await request('/api/records',{method:'POST',cookie:lyria.cookie,data:record('pin','Luogo con segnalino',['*'],{x:.2,y:.3,markerImage:photoId,markerIcon:'castle',images:[{id:photoId,caption:'Veduta'}]})});
+ assert.equal(created.status,200);
+ const stored=(await request('/api/state',{cookie:lyria.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.equal(stored.data.markerImage,photoId);assert.deepEqual(stored.data.images,[{id:photoId,caption:'Veduta'}]);
+ const again=await request('/api/records',{method:'PUT',cookie:lyria.cookie,data:{...stored,title:'Luogo rinominato'}});
+ assert.equal(again.status,200);
+ const after=(await request('/api/state',{cookie:lyria.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.equal(after.data.markerImage,photoId);assert.deepEqual(after.data.images,[{id:photoId,caption:'Veduta'}]);
+});
+await test('La calibrazione della mappa e il calendario sopravvivono al salvataggio delle impostazioni',async()=>{
+ const before=(await request('/api/state',{cookie:dm.cookie})).data;
+ const next={...before.settings,mapWidthMiles:23.5,mapCalibrated:true,speed:2.5,locationRadiusMiles:.4};
+ assert.equal((await request('/api/settings',{method:'PUT',cookie:dm.cookie,data:{settings:next,version:before.settingsVersion}})).status,200);
+ const after=(await request('/api/state',{cookie:dm.cookie})).data.settings;
+ assert.equal(after.mapWidthMiles,23.5);assert.equal(after.mapCalibrated,true);assert.equal(after.speed,2.5);
+ assert.equal(after.locationRadiusMiles,.4);assert.deepEqual(after.months,before.settings.months);
+ assert.deepEqual(after.party,before.settings.party);assert.equal(after.title,before.settings.title);
+});
+await test('Lo stato risponde «non è cambiato niente» finché nessuno modifica la campagna',async()=>{
+ const first=await request('/api/state',{cookie:dm.cookie});
+ const tag=first.response.headers.get('etag');assert(tag,'manca l’impronta ETag');
+ const repeat=await request('/api/state',{cookie:dm.cookie,extra:{'If-None-Match':tag}});
+ assert.equal(repeat.status,304);assert.equal(repeat.response.headers.get('etag'),tag);
+ assert.equal((await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('note','Novità',['*'])})).status,200);
+ const changed=await request('/api/state',{cookie:dm.cookie,extra:{'If-None-Match':tag}});
+ assert.equal(changed.status,200);assert.notEqual(changed.response.headers.get('etag'),tag);
+});
+await test('Il conteggio dei tentativi separa il nome dall’indirizzo di provenienza',async()=>{
+ const wrong={action:'login',name:'Nier',key:'chiave-sbagliata-ma-lunga'};
+ for(let i=0;i<10;i++)await request('/api/auth',{method:'POST',data:wrong,extra:{'X-Nf-Client-Connection-IP':'198.51.100.'+i}});
+ const blocked=await request('/api/auth',{method:'POST',data:wrong,extra:{'X-Nf-Client-Connection-IP':'198.51.100.99'}});
+ assert.equal(blocked.status,429,'il nome sotto attacco viene protetto anche cambiando indirizzo');
+ const other=await request('/api/auth',{method:'POST',data:{action:'login',name:'Lyria',key:'chiave-sbagliata-ma-lunga'},extra:{'X-Nf-Client-Connection-IP':'198.51.100.99'}});
+ assert.equal(other.status,401,'un altro nome dallo stesso indirizzo non deve ereditare il blocco');
+ for(let i=0;i<30;i++)await request('/api/auth',{method:'POST',data:{action:'login',name:'Ospite'+i,key:'chiave-sbagliata-ma-lunga'},extra:{'X-Nf-Client-Connection-IP':'198.51.100.7'}});
+ const flood=await request('/api/auth',{method:'POST',data:{action:'login',name:'Ospite99',key:'chiave-sbagliata-ma-lunga'},extra:{'X-Nf-Client-Connection-IP':'198.51.100.7'}});
+ assert.equal(flood.status,429,'chi prova molti nomi dallo stesso indirizzo viene fermato');
+});
+
+await test('Le etichette, la scheda del personaggio e la moneta si salvano senza toccare il resto',async()=>{
+ const pg=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('character','Ireena',['*'],{subtitle:'sorella di Ismark',status:'In vita',pc:true,player:'Rita',role:'Chierico',level:4,hp:22,maxHp:31,ac:16,passive:13,speed:9,tags:['Barovia','ALLEATI','barovia']})});
+ assert.equal(pg.status,200);
+ const stored=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===pg.data.id);
+ assert.equal(stored.data.pc,true);assert.equal(stored.data.hp,22);assert.equal(stored.data.maxHp,31);assert.equal(stored.data.ac,16);
+ assert.equal(stored.data.passive,13);assert.equal(stored.data.player,'Rita');assert.equal(stored.data.level,4);
+ assert.deepEqual(stored.data.tags,['barovia','alleati'],'le etichette si normalizzano e non si ripetono');
+ assert.equal(stored.data.subtitle,'sorella di Ismark');assert.equal(stored.data.status,'In vita');
+ const npc=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('character','Oste',['*'],{subtitle:'locanda',status:'In vita'})});
+ const plain=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===npc.data.id);
+ assert.equal(plain.data.pc,false);assert.equal(plain.data.hp,undefined,'un personaggio non giocante non prende campi di scheda');
+ const coin=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('treasure','Monete',['*'],{quantity:120,value:1,currency:'ma'})});
+ const money=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===coin.data.id);
+ assert.equal(money.data.currency,'ma');
+ const old=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('treasure','Oggetto senza moneta',['*'],{quantity:1,value:50})});
+ const legacy=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===old.data.id);
+ assert.equal(legacy.data.currency,'mo','senza indicazione la moneta resta l’oro, come prima');
+});
+await test('Le stesure precedenti vengono conservate, restano private e spariscono con la voce',async()=>{
+ const created=await request('/api/records',{method:'POST',cookie:lyria.cookie,data:record('note','Teoria sul castello',['lyria'],{})});
+ const first=(await request('/api/state',{cookie:lyria.cookie})).data.records.find(r=>r.id===created.data.id);
+ await request('/api/records',{method:'PUT',cookie:lyria.cookie,data:{...first,body:'Seconda stesura'}});
+ const second=(await request('/api/state',{cookie:lyria.cookie})).data.records.find(r=>r.id===created.data.id);
+ await request('/api/records',{method:'PUT',cookie:lyria.cookie,data:{...second,body:'Terza stesura'}});
+ const list=await request('/api/revisions?id='+created.data.id,{cookie:lyria.cookie});
+ assert.equal(list.status,200);assert.equal(list.data.revisions.length,2);
+ assert.equal(list.data.revisions[0].body,'Seconda stesura','la piu recente per prima');
+ assert.equal((await request('/api/revisions?id='+created.data.id,{cookie:dm.cookie})).status,404,'chi non vede la voce non ne vede le stesure');
+ const current=(await request('/api/state',{cookie:lyria.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.equal((await request('/api/records',{method:'DELETE',cookie:lyria.cookie,data:{id:current.id,version:current.version}})).status,200);
+ assert.equal((await DB.prepare('SELECT count(*) n FROM revisions WHERE record_id = ?').bind(created.data.id).first()).n,0);
+});
+await test('Il segnalibro delle novità è personale',async()=>{
+ const at=1770000000000;
+ assert.equal((await request('/api/seen',{method:'POST',cookie:lyria.cookie,data:{at}})).status,200);
+ const mine=(await request('/api/state',{cookie:lyria.cookie})).data;
+ assert.equal(mine.user.seen,at);
+ assert.equal(mine.users.find(u=>u.id!==mine.user.id&&u.seen!==undefined),undefined,'il segnalibro altrui non viene mostrato');
+ assert.equal((await request('/api/state',{cookie:dm.cookie})).data.user.seen,0);
+});
+await test('Il bestiario è riservato al DM e conserva gli avversari salvati',async()=>{
+ const before=(await request('/api/state',{cookie:dm.cookie})).data;
+ assert.deepEqual(before.bestiary,{creatures:[]});
+ assert.equal((await request('/api/state',{cookie:lyria.cookie})).data.bestiary,undefined);
+ const creatures=[{id:'lupo',name:'Lupo delle nebbie',ac:13,maxHp:11,initiative:2,conditions:'',notes:'Branco'}];
+ assert.equal((await request('/api/bestiary',{method:'PUT',cookie:dm.cookie,data:{data:{creatures},version:before.bestiaryVersion}})).status,200);
+ assert.equal((await request('/api/bestiary',{method:'PUT',cookie:lyria.cookie,data:{data:{creatures},version:1}})).status,403);
+ assert.deepEqual((await request('/api/state',{cookie:dm.cookie})).data.bestiary.creatures,creatures);
+});
+
+await test('Le mappe aggiuntive sono del DM, conservano proporzioni e scala, e non toccano i luoghi esistenti',async()=>{
+ // Un luogo salvato prima di questa novità non ha il campo «mappa»: deve restare
+ // sulla mappa principale, cioè avere mappa vuota, anche dopo una modifica.
+ const vecchio=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('pin','Luogo di prima',['*'],{x:.3,y:.4,markerIcon:'town'})});
+ const primo=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===vecchio.data.id);
+ assert.equal(primo.data.map,'','un luogo senza indicazione resta sulla mappa principale');
+ await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...primo,title:'Luogo di prima, rivisto'}});
+ const dopo=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===vecchio.data.id);
+ assert.equal(dopo.data.map,'');assert.equal(dopo.data.markerIcon,'town');assert.equal(dopo.data.x,.3);
+ const mappa=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('map','Casa della morte',['*'],{image:'',ratio:1.25,widthMiles:.08,calibrated:true,parent:'',x:.788,y:.619})});
+ assert.equal(mappa.status,200);
+ const salvata=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===mappa.data.id);
+ assert.equal(salvata.data.ratio,1.25);assert.equal(salvata.data.widthMiles,.08);assert.equal(salvata.data.calibrated,true);assert.equal(salvata.data.parent,'');
+ assert.equal(salvata.data.x,.788);assert.equal(salvata.data.y,.619);
+ const dentro=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('pin','Solaio',['*'],{x:.5,y:.2,map:mappa.data.id})});
+ const stanza=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===dentro.data.id);
+ assert.equal(stanza.data.map,mappa.data.id,'un luogo può appartenere a una mappa figlia');
+ assert.equal((await request('/api/records',{method:'POST',cookie:lyria.cookie,data:record('map','Mappa di un giocatore',['*'],{})})).status,403);
+});
+await test('Le tabelle casuali restano riservate al DM e conservano le righe',async()=>{
+ const entries=[{id:'a',text:'Un branco di lupi segue il gruppo'},{id:'b',text:'Una carovana vistani accampata'},{id:'c',text:'Nebbia improvvisa: il sentiero sparisce'}];
+ const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('table','Incontri notturni',['*'],{entries,dice:'1d3 · notte'})});
+ assert.equal(created.status,200);
+ const stored=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.equal(stored.data.entries.length,3);assert.equal(stored.data.entries[1].text,'Una carovana vistani accampata');assert.equal(stored.data.dice,'1d3 · notte');
+ assert.deepEqual(stored.audience.sort(),['dm'],'la visibilità viene forzata al solo DM');
+ assert.equal((await request('/api/state',{cookie:lyria.cookie})).data.records.some(r=>r.id===created.data.id),false);
+ assert.equal((await request('/api/records',{method:'POST',cookie:lyria.cookie,data:record('table','Tabella di un giocatore',['*'],{entries})})).status,403);
 });
 await closeDatabase();
