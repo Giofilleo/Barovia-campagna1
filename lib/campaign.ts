@@ -4,9 +4,12 @@ export type Kind='pin'|'note'|'character'|'journal'|'secret'|'treasure'|'faction
 export type Member={id:string;name:string;role:'dm'|'player';active:number;changed?:number;seen?:number};
 export type Point={x:number;y:number};
 export type Entry={id:string;kind:Kind;title:string;body:string;owner:string;audience:string[];folder:string;data:Record<string,any>;links:string[];version:number;updated:number;editor:string};
-export type Settings={title:string;minutes:number;party:Point;mapWidthMiles:number;speed:number;mapCalibrated?:boolean;partyImage?:string;locationRadiusMiles?:number;months:string[]};
+export type Settings={title:string;minutes:number;party:Point;mapWidthMiles:number;speed:number;mapCalibrated?:boolean;partyImage?:string;locationRadiusMiles?:number;months:string[];pinScale?:number;pinLabels?:'sempre'|'passaggio'|'mai';pinLabelScale?:number};
 export type State={user:Member;users:Member[];records:Entry[];settings:Settings;settingsVersion:number;supplies:Supplies;suppliesVersion:number;dmBoard?:DMBoard;dmBoardVersion?:number;bestiary?:Bestiary;bestiaryVersion?:number};
-export const DEFAULTS:Settings={title:'Curse of Strahd',minutes:480,party:{x:.925,y:.548},mapWidthMiles:20,speed:3,months:MONTHS};
+export const DEFAULTS:Settings={title:'Curse of Strahd',minutes:480,party:{x:.925,y:.548},mapWidthMiles:20,speed:3,months:MONTHS,pinScale:1,pinLabels:'sempre',pinLabelScale:1};
+/** Aspetto dei segnalini: valori della campagna, uguali per tutti finche qualcuno
+ *  non li adatta al proprio schermo. La preferenza personale resta nel browser. */
+export const PIN_LABEL_MODES=[{value:'sempre',label:'Sempre visibili'},{value:'passaggio',label:'Al passaggio del puntatore'},{value:'mai',label:'Nascoste'}];
 export const KINDS:Record<Kind,{label:string;plural:string;color:string}>={pin:{label:'Luogo',plural:'Luoghi',color:'#b49b8e'},note:{label:'Appunto',plural:'Appunti',color:'#9099a8'},character:{label:'Personaggio',plural:'Glossario',color:'#b19dae'},journal:{label:'Sessione',plural:'Diario',color:'#b6a79a'},secret:{label:'Nota del DM',plural:'Schermo del DM',color:'#a8575a'},treasure:{label:'Oggetto',plural:'Tesoro',color:'#b9ad8c'},faction:{label:'Fazione',plural:'Reputazione',color:'#829cb0'},event:{label:'Evento',plural:'Cronologia',color:'#aa8160'},folder:{label:'Cartella',plural:'Cartelle',color:'#969aa3'},map:{label:'Mappa',plural:'Mappe',color:'#8fa9a0'},table:{label:'Tabella',plural:'Tabelle casuali',color:'#a89870'}};
 export function dateParts(minutes:number){const day=Math.floor(minutes/1440);return{year:735+Math.floor(day/336),month:Math.floor((day%336)/28),day:day%28+1,hour:Math.floor((minutes%1440)/60),minute:minutes%60};}
 export function toMinutes(year:number,month:number,day:number,hour:number,minute:number){return(((year-735)*336+month*28+day-1)*1440+hour*60+minute);}

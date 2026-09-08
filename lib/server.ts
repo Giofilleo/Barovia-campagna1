@@ -63,7 +63,7 @@ function cleanData(kind:string,d:any){d=d&&typeof d==='object'?d:{};const result
  if(kind==='pin'||kind==='event'){Object.assign(result,point(d));result.category=cleanText(d.category,40,'luogo');if(kind==='pin'){result.markerImage=cleanText(d.markerImage,80);result.markerIcon=cleanText(d.markerIcon,30,'pin');result.map=cleanText(d.map,80);}}
  // Una mappa aggiuntiva: immagine, proporzioni, scala propria e posizione sulla mappa
  // che la contiene. La mappa principale resta quella del sito e non e un contenuto.
- if(kind==='map'){Object.assign(result,point(d));result.image=cleanText(d.image,80);result.ratio=number(d.ratio,.05,20,1.558);result.widthMiles=number(d.widthMiles,.001,10000,1);result.calibrated=d.calibrated===true;result.parent=cleanText(d.parent,80);result.markerIcon=cleanText(d.markerIcon,30,'castle');}
+ if(kind==='map'){Object.assign(result,point(d));result.image=cleanText(d.image,80);result.markerImage=cleanText(d.markerImage,80);result.ratio=number(d.ratio,.05,20,1.558);result.widthMiles=number(d.widthMiles,.001,10000,1);result.calibrated=d.calibrated===true;result.parent=cleanText(d.parent,80);result.markerIcon=cleanText(d.markerIcon,30,'castle');result.category=cleanText(d.category,40,'luogo');}
  if(kind==='table'){result.entries=Array.isArray(d.entries)?d.entries.slice(0,200).map((x:any)=>({id:cleanText(x?.id,80)||crypto.randomUUID(),text:cleanText(x?.text,300)})).filter((x:any)=>x.text):[];result.dice=cleanText(d.dice,20);}
  if(kind==='event'){result.minutes=Math.floor(number(d.minutes,0,500000000,480));result.path=Array.isArray(d.path)?d.path.slice(0,1000).map(point):[];result.routeVersion=d.routeVersion===2?2:1;result.curve=d.curve===true;}
  if(kind==='character'){result.subtitle=cleanText(d.subtitle,180);result.status=cleanText(d.status,50,'Sconosciuto');result.image=cleanText(d.image,80);
@@ -138,7 +138,15 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
  if(req.method!=='POST'&&req.method!=='PUT')fail(405,'Metodo non consentito.');
  if(req.method==='PUT'&&!old)fail(404,'Contenuto non disponibile.');
  if(old&&!editable(old,user))fail(403,'Non puoi modificare questo contenuto.');
- const kind=old?.kind||b.kind;if(!Object.hasOwn(KINDS,kind))fail(400,'Tipo di contenuto non valido.');
+ let kind=old?.kind||b.kind;if(!Object.hasOwn(KINDS,kind))fail(400,'Tipo di contenuto non valido.');
+ // Un luogo puo ricevere una mappa propria, e rinunciarvi, senza essere ricreato:
+ // titolo, testo, immagini, etichette, collegamenti e identificativo restano gli stessi.
+ const converting=!!old&&typeof b.kind==='string'&&b.kind!==old.kind;
+ if(converting){
+  if(!Object.hasOwn(KINDS,b.kind)||[old!.kind,b.kind].sort().join('-')!=='map-pin')fail(400,'Questo contenuto non può cambiare tipo.');
+  if(user.role!=='dm')fail(403,'Solo il DM può dare una mappa a un luogo.');
+  kind=b.kind;
+ }
  if(['secret','faction','table','map'].includes(kind)&&user.role!=='dm')fail(403,'Questa sezione è riservata al DM.');
  const title=cleanText(b.title,160);if(!title)fail(400,'Inserisci un titolo.');
  const owner=old?.owner||user.id;const users=await allUsers(db);const known=new Set(users.map(u=>u.id));
@@ -149,11 +157,20 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
  if(typeof b.body==='string'&&b.body.length>60000)fail(400,'Il testo supera il limite di 60.000 caratteri.');let content=cleanText(b.body,60000);if(old){const protectedTokens=new Map(inlineReferences(old.body).filter(x=>!accessible.has(x.id)).map(x=>[x.id,x.token]));content=content.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g,(token,id)=>protectedTokens.get(id)||token);}
  const links=Array.from(new Set([...inlineReferences(content).map(x=>x.id).filter(id=>accessible.has(id)&&id!==old?.id),...(Array.isArray(b.links)?b.links.filter((id:any)=>typeof id==='string'&&accessible.has(id)&&id!==old?.id):[]),...(old?.links.filter(id=>!accessible.has(id))||[])]));
  const requestedFolder=cleanText(b.folder,80);const keepHiddenFolder=!!old?.folder&&!accessible.has(old.folder)&&!requestedFolder;const folder=keepHiddenFolder?old!.folder:requestedFolder;if(folder&&!keepHiddenFolder){const f=all.find(r=>r.id===folder);if(!f||f.kind!=='folder'||!visible(f,user))fail(400,'Cartella non disponibile.');}
- const data=cleanData(kind,b.data);
+ let incoming=b.data;
+ if(converting){
+  incoming={...(incoming&&typeof incoming==='object'?incoming:{})};
+  if(kind==='map'){if(incoming.parent===undefined)incoming.parent=old!.data.map||'';}
+  else{if(incoming.map===undefined)incoming.map=old!.data.parent||'';
+   const inside=all.filter(r=>r.id!==old!.id&&((r.kind==='map'&&(r.data.parent||'')===old!.id)||(r.kind==='pin'&&(r.data.map||'')===old!.id)));
+   if(inside.length)fail(400,'Questa mappa contiene ancora '+inside.length+(inside.length===1?' voce':' voci')+': spostale altrove prima di toglierle la mappa.');
+  }
+ }
+ const data=cleanData(kind,incoming);
  for(const imageId of imageIds(data)){const upload=await db.prepare('SELECT * FROM uploads WHERE id = ?').bind(imageId).first<any>();if(!upload||(upload.owner!==user.id&&!imageIds(old?.data||{}).includes(imageId)))fail(403,'Immagine non disponibile.');}
- const id=old?.id||(typeof b.id==='string'&&/^[0-9a-f-]{36}$/.test(b.id)?b.id:crypto.randomUUID());const updated=Date.now();const values=[title,content,JSON.stringify(audience),folder,JSON.stringify(data),JSON.stringify(links),updated,user.id];
- if(old){const result=await db.prepare('UPDATE records SET title = ?, body = ?, audience = ?, folder = ?, data = ?, links = ?, updated = ?, editor = ?, version = version + 1 WHERE id = ? AND version = ?').bind(...values,id,b.version).run();if(!result.meta.changes)fail(409,'Qualcuno ha aggiornato questa voce. La tua bozza resta salvata: chiudi e riapri per ritrovarla e unire le modifiche.');await storeRevision(db,old);}
- else await db.prepare('INSERT INTO records (title,body,audience,folder,data,links,updated,editor,id,kind,owner,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,1)').bind(...values,id,kind,owner).run();
+ const id=old?.id||(typeof b.id==='string'&&/^[0-9a-f-]{36}$/.test(b.id)?b.id:crypto.randomUUID());const updated=Date.now();const values=[title,content,JSON.stringify(audience),folder,JSON.stringify(data),JSON.stringify(links),updated,user.id,kind];
+ if(old){const result=await db.prepare('UPDATE records SET title = ?, body = ?, audience = ?, folder = ?, data = ?, links = ?, updated = ?, editor = ?, kind = ?, version = version + 1 WHERE id = ? AND version = ?').bind(...values,id,b.version).run();if(!result.meta.changes)fail(409,'Qualcuno ha aggiornato questa voce. La tua bozza resta salvata: chiudi e riapri per ritrovarla e unire le modifiche.');await storeRevision(db,old);}
+ else await db.prepare('INSERT INTO records (title,body,audience,folder,data,links,updated,editor,kind,id,owner,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,1)').bind(...values,id,owner).run();
  return json({ok:true,id});
  }
  if(path==='/api/seen'&&req.method==='POST'){
@@ -176,7 +193,7 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
  if(user.role!=='dm')fail(403,'Solo il DM può modificare la campagna.');const b=await body(req);const d=b.settings;
  if(!d||!Array.isArray(d.months)||d.months.length!==12||d.months.some((s:any)=>typeof s!=='string'||!s.trim()))fail(400,'Inserisci i nomi dei 12 mesi.');
  const stored=await db.prepare('SELECT value FROM settings WHERE id = ?').bind('campaign').first<any>();const currentSettings=JSON.parse(stored.value);const partyImage=cleanText(d.partyImage,80);if(partyImage&&partyImage!==currentSettings.partyImage){const upload=await db.prepare('SELECT owner FROM uploads WHERE id = ?').bind(partyImage).first<any>();if(!upload||upload.owner!==user.id)fail(403,'Immagine del gruppo non disponibile.');}
- const next:Settings={partyImage,locationRadiusMiles:number(d.locationRadiusMiles,.01,100,.25),title:cleanText(d.title,120,'Curse of Strahd'),minutes:Math.floor(number(d.minutes,0,500000000,480)),party:point(d.party),mapWidthMiles:number(d.mapWidthMiles,.1,10000,20),speed:number(d.speed,.1,100,3),mapCalibrated:d.mapCalibrated===true,months:d.months.map((s:string)=>s.trim().slice(0,30))};
+ const next:Settings={partyImage,pinScale:number(d.pinScale,.5,2.5,1),pinLabels:['sempre','passaggio','mai'].includes(d.pinLabels)?d.pinLabels:'sempre',pinLabelScale:number(d.pinLabelScale,.6,2,1),locationRadiusMiles:number(d.locationRadiusMiles,.01,100,.25),title:cleanText(d.title,120,'Curse of Strahd'),minutes:Math.floor(number(d.minutes,0,500000000,480)),party:point(d.party),mapWidthMiles:number(d.mapWidthMiles,.1,10000,20),speed:number(d.speed,.1,100,3),mapCalibrated:d.mapCalibrated===true,months:d.months.map((s:string)=>s.trim().slice(0,30))};
  const r=await db.prepare('UPDATE settings SET value = ?, version = version + 1 WHERE id = ? AND version = ?').bind(JSON.stringify(next),'campaign',b.version).run();if(!r.meta.changes)fail(409,'La campagna è stata aggiornata. Ricarica prima di riprovare.');return json({ok:true});
  }
 
