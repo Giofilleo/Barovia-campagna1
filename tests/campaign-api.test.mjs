@@ -347,4 +347,29 @@ await test('Le tabelle casuali restano riservate al DM e conservano le righe',as
  assert.equal((await request('/api/state',{cookie:lyria.cookie})).data.records.some(r=>r.id===created.data.id),false);
  assert.equal((await request('/api/records',{method:'POST',cookie:lyria.cookie,data:record('table','Tabella di un giocatore',['*'],{entries})})).status,403);
 });
+
+await test('L’aspetto dei segnalini è una scelta della campagna, con valori sensati di partenza',async()=>{
+ const before=(await request('/api/state',{cookie:dm.cookie})).data;
+ assert.equal(before.settings.pinScale,1);assert.equal(before.settings.pinLabels,'sempre');assert.equal(before.settings.pinLabelScale,1);
+ const next={...before.settings,pinScale:1.4,pinLabels:'passaggio',pinLabelScale:.8};
+ assert.equal((await request('/api/settings',{method:'PUT',cookie:dm.cookie,data:{settings:next,version:before.settingsVersion}})).status,200);
+ const saved=(await request('/api/state',{cookie:lyria.cookie})).data.settings;
+ assert.equal(saved.pinScale,1.4);assert.equal(saved.pinLabels,'passaggio');assert.equal(saved.pinLabelScale,.8,'i valori arrivano uguali a tutti');
+ const current=(await request('/api/state',{cookie:dm.cookie})).data;
+ const assurdo={...current.settings,pinScale:99,pinLabels:'colorate',pinLabelScale:-3};
+ assert.equal((await request('/api/settings',{method:'PUT',cookie:dm.cookie,data:{settings:assurdo,version:current.settingsVersion}})).status,200);
+ const clamped=(await request('/api/state',{cookie:dm.cookie})).data.settings;
+ assert.equal(clamped.pinScale,2.5);assert.equal(clamped.pinLabels,'sempre');assert.equal(clamped.pinLabelScale,.6);
+ assert.equal((await request('/api/settings',{method:'PUT',cookie:lyria.cookie,data:{settings:next,version:1}})).status,403);
+});
+await test('Un ingresso conserva l’icona e l’immagine del suo segnalino',async()=>{
+ const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('map','Cripta',['*'],{ratio:1.3,widthMiles:.02,parent:'',x:.2,y:.7,markerIcon:'skull'})});
+ const stored=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.equal(stored.data.markerIcon,'skull');assert.equal(stored.data.markerImage,'');
+ const moved=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...stored,data:{...stored.data,x:.44,y:.51}}});
+ assert.equal(moved.status,200);
+ const after=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.equal(after.data.x,.44);assert.equal(after.data.y,.51,'trascinare un ingresso ne salva la posizione');
+ assert.equal(after.data.markerIcon,'skull');assert.equal(after.data.ratio,1.3);assert.equal(after.data.widthMiles,.02);
+});
 await closeDatabase();
