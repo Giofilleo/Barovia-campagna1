@@ -368,3 +368,164 @@ h1,h2,h3{color:#e0dee1!important;}.heading-dot,.empty-ornament,.caption-rule{dis
  .sidebar-bottom { padding:10px 20px 0!important; }
  .party-avatars { padding-bottom:12px; }
 }
+/* --- Bozza recuperata nell'editor --- */
+.draft-recovery { display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 18px;padding:13px 16px;margin-bottom:4px;border:1px solid #5a4a52;border-left:3px solid #a8626f;border-radius:4px;background:#231f24; }
+.draft-recovery strong { display:block;font-size:14px;color:#e2dbe0;font-weight:500; }
+.draft-recovery span { font-size:12px;color:#a9a2aa; }
+.draft-recovery-actions { display:flex;gap:8px;flex-shrink:0; }
+/* --- Anteprima dei risultati di ricerca --- */
+.search-item { display:flex;flex-direction:column;gap:3px;min-width:0;flex:1; }
+.search-title { color:inherit; }
+.search-excerpt { font-size:12px;line-height:1.6;color:#9ba3b2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical; }
+.search-excerpt mark { background:#4a2f3a;color:#f0d9e0;border-radius:2px;padding:0 2px; }
+/* --- Contrasto dei grigi piu tenui sui testi piccoli --- */
+.muted,.small.muted,.help-text,.map-note,.bottom-tip,.aside-title .eyebrow,.aside-section .eyebrow { color:#a3a7b1; }
+.graph-legend,.map-credit,.graph-scale,.page-footnote { color:#b6bac4; }
+.event-excerpt,.location-row small,.entry-card-footer { color:#a3a7b1; }
+
+/* ================================================================
+   Novità, etichette, schede, stesure, monete, bestiario, provviste
+   ================================================================ */
+/* --- Cielo della valle nella barra di stato --- */
+.sky-readout { display:flex;align-items:center;gap:8px;font-size:12px;color:#aab0bd;margin-left:20px; }
+.sky-readout>svg { color:#8f96a4; }
+.sky-readout>i { width:1px;height:12px;background:#2e3036;margin:0 2px; }
+.sky-readout .moon-full { color:#d8cfb2;font-weight:500; }
+@media(max-width:900px){ .sky-readout { display:none; } }
+/* --- Contatore delle novità nella navigazione --- */
+.nav-badge { margin-left:auto;min-width:19px;height:19px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:#7c3346;color:#f0dde2;font-size:11px;font-variant-numeric:tabular-nums; }
+/* --- Pagina delle novità --- */
+.news-block { margin-top:26px; }
+.news-block-head { display:flex;align-items:center;gap:11px;margin-bottom:12px;color:#8f96a4; }
+.news-block-head .eyebrow { font-size:12px;letter-spacing:.15em; }
+.news-block-head .rule { flex:1;height:1px;background:#2a2d36; }
+.news-list { display:flex;flex-direction:column;border:1px solid #2b2e37;border-radius:4px;overflow:hidden;background:#181a20; }
+.news-row { display:flex;align-items:center;gap:14px;width:100%;text-align:left;padding:13px 16px;background:transparent;border:0;border-top:1px solid #23262e;color:#c8ccd6; }
+.news-row:first-child { border-top:0; }
+.news-row:hover { background:#1e212a; }
+.news-row.unread { background:#20191d; }
+.news-row.unread:hover { background:#261e23; }
+.news-mark { width:4px;align-self:stretch;min-height:30px;border-radius:2px;flex-shrink:0;opacity:.85; }
+.news-body { display:flex;flex-direction:column;gap:3px;min-width:0;flex:1; }
+.news-top { display:flex;align-items:baseline;gap:10px;min-width:0; }
+.news-top strong { font-weight:500;color:#e0e2e8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.news-kind { font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#8b909e;flex-shrink:0; }
+.news-meta { font-size:12px;color:#98a0ae; }
+.news-row>svg { color:#7d838f;flex-shrink:0; }
+/* --- Etichette --- */
+.tag-field { display:flex;flex-direction:column;gap:9px;margin:4px 0 2px; }
+.tag-field>label { display:flex;align-items:center;gap:8px;font-size:13px;color:#b9bcc4; }
+.tag-list { display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:8px 10px;border:1px solid #363944;border-radius:4px;background:#16181d; }
+.tag-list>input { flex:1;min-width:150px;background:transparent;border:0;font-size:13px;padding:3px 0;color:inherit; }
+.tag-chip { display:inline-flex;align-items:center;gap:5px;padding:3px 5px 3px 9px;border:1px solid #4a4550;border-radius:3px;background:#241f26;font-size:12px;color:#d3c9d2; }
+.tag-chip>button { display:flex;background:transparent;border:0;padding:1px;color:#a3939d;border-radius:2px; }
+.tag-chip>button:hover { color:#e6d5dc;background:#3a3039; }
+.tag-suggestions { display:flex;flex-wrap:wrap;gap:6px; }
+.tag-suggestions>button { font-size:12px;padding:3px 8px;border:1px dashed #3d4049;border-radius:3px;background:transparent;color:#98a0ae; }
+.tag-suggestions>button:hover { border-style:solid;color:#d0d3da; }
+.tag-filter { display:flex;flex-wrap:wrap;gap:7px;margin:-14px 0 22px; }
+.tag-filter>button { font-size:12px;padding:4px 10px;border:1px solid #33363f;border-radius:3px;background:transparent;color:#9ba3b1; }
+.tag-filter>button.selected { border-color:#8d6572;background:#241d21;color:#e0d3d8; }
+.detail-tags { display:flex;flex-wrap:wrap;gap:7px;margin-top:20px; }
+.detail-tags>button { font-size:12px;padding:3px 9px;border:1px solid #4a4550;border-radius:3px;background:#211d23;color:#c6bcc5; }
+.detail-tags>button:hover { border-color:#7d6a76;color:#e6dce4; }
+/* --- Scheda del personaggio: modulo --- */
+.sheet-editor { display:flex;flex-direction:column;gap:14px;padding:16px;border:1px solid #363944;border-radius:4px;background:#16181d; }
+.sheet-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px; }
+@media(max-width:600px){ .sheet-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+/* --- Scheda del personaggio: lettura --- */
+.sheet-card { margin:18px 0 22px;padding:18px;border:1px solid #43414f;border-radius:4px;background:#1c1a22; }
+.sheet-card-head { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px; }
+.sheet-card-head .eyebrow { font-size:12px;letter-spacing:.14em;color:#98909e; }
+.sheet-role { font-family:Georgia,serif;font-size:16px;color:#cfc7d1;margin-bottom:16px; }
+.sheet-stats { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px; }
+@media(max-width:640px){ .sheet-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.sheet-stats>div { display:flex;flex-direction:column;gap:4px;min-width:0; }
+.sheet-stats span:first-child { font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:#948e9c; }
+.sheet-stats strong { font-family:Georgia,serif;font-size:25px;font-weight:400;color:#e4dfe6;font-variant-numeric:tabular-nums; }
+.sheet-stats strong small { font-size:15px;color:#9a94a2; }
+.hp-bar { display:block;height:4px;border-radius:2px;background:#332e38;overflow:hidden;margin-top:2px; }
+.hp-bar>i { display:block;height:100%;background:#a8575a; }
+/* --- Sessione collegata alla cronologia --- */
+.session-window { margin:4px 0;padding:12px 14px;border:1px solid #363944;border-radius:4px;background:#16181d; }
+.session-window>summary { display:flex;align-items:center;gap:9px;font-size:13px;color:#b9bcc4;cursor:pointer; }
+.session-window .field { margin-top:12px; }
+.session-events { margin-top:26px;padding-top:20px;border-top:1px solid #2a2d36;display:flex;flex-direction:column;gap:10px; }
+.session-events .eyebrow { font-size:12px;letter-spacing:.14em; }
+/* --- Stesure precedenti --- */
+.revision-list { margin-top:24px;padding-top:18px;border-top:1px solid #2a2d36; }
+.revision-list>summary { display:flex;align-items:center;gap:9px;font-size:13px;color:#b0b4bd;cursor:pointer; }
+.revision-list>summary .count { margin-left:2px; }
+.revision-rows { display:flex;flex-direction:column;gap:1px;margin:14px 0 10px;background:#2a2d36;border:1px solid #2a2d36;border-radius:4px;overflow:hidden; }
+.revision-row { display:flex;flex-direction:column;gap:7px;padding:13px 15px;background:#181a20; }
+.revision-row strong { display:block;font-weight:500;font-size:14px;color:#dcdee5; }
+.revision-row small { font-size:12px;color:#949bab; }
+.revision-actions { display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap; }
+.revision-actions .btn { flex-shrink:0; }
+/* --- Divisione del bottino --- */
+.split-loot { display:flex;flex-direction:column;gap:18px; }
+.split-figures { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
+.split-figures>div { padding:15px;border:1px solid #3c4050;border-radius:3px;background:#191d26; }
+.split-figures .eyebrow { font-size:11px;letter-spacing:.12em;display:block;margin-bottom:6px; }
+.split-figures strong { font-family:Georgia,serif;font-size:29px;font-weight:400;color:#e4e2e6;font-variant-numeric:tabular-nums; }
+.split-figures strong small { font-size:16px;color:#9ba0ab; }
+.split-coins { display:flex;flex-direction:column;gap:9px; }
+.split-coins>div { display:flex;flex-wrap:wrap;gap:8px; }
+.coin-chip { padding:5px 10px;border:1px solid #4a4436;border-radius:3px;background:#211f18;font-size:13px;color:#ded5bd;font-variant-numeric:tabular-nums; }
+.coin-chip b { font-weight:500;color:#a89870;margin-left:2px; }
+/* --- Bestiario --- */
+.bestiary-list { display:flex;flex-direction:column;gap:1px;background:#2a2d36;border:1px solid #2a2d36;border-radius:4px;overflow:hidden;max-height:320px;overflow-y:auto; }
+.bestiary-row { display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;background:#181a20; }
+.bestiary-row strong { display:block;font-weight:500;font-size:14px;color:#dcdee5; }
+.bestiary-row small { font-size:12px;color:#949bab; }
+.bestiary-actions { display:flex;align-items:center;gap:6px;flex-shrink:0; }
+.combat-name+.icon-btn { width:26px;height:26px;color:#8a8570; }
+.combat-name+.icon-btn:hover:not(:disabled) { color:#d8c68d; }
+/* --- Promemoria delle provviste --- */
+.supply-reminder { display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px 20px;padding:15px 18px;margin-bottom:22px;border:1px solid #4a4436;border-left:3px solid #a89870;border-radius:4px;background:#1e1c17; }
+.supply-reminder>div:first-child { display:flex;align-items:center;gap:13px;min-width:0; }
+.supply-reminder svg { color:#a89870;flex-shrink:0; }
+.supply-reminder strong { display:block;font-weight:500;font-size:14px;color:#e6e0d2; }
+.supply-reminder span { font-size:13px;color:#b4ac99; }
+
+/* ================================================================
+   Più mappe e tabelle casuali
+   ================================================================ */
+/* --- Selettore delle mappe sovrapposto alla mappa --- */
+.map-layers { position:absolute;right:15px;top:16px;z-index:7;display:flex;flex-direction:column;gap:9px;max-width:270px;padding:10px 11px;border:1px solid #71737a;border-radius:6px;background:#131416ed;box-shadow:0 4px 15px #00000044; }
+.map-layers-top { display:flex;align-items:center;gap:8px; }
+.map-layers-top>svg { color:#a4a6ab;flex-shrink:0; }
+.map-layers .choice { min-width:150px;height:31px;font-size:13px; }
+.map-layers .icon-btn { width:29px;height:29px;color:#d0d1d3;flex-shrink:0; }
+.map-layers .text-button { font-size:12px;color:#a4a6ab;gap:6px; }
+.map-crumbs { display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:12px;color:#8f939c; }
+.map-crumbs button { background:transparent;border:0;padding:0;font-size:12px;color:#a9adb6;text-decoration:underline;text-decoration-color:#4a4e57;text-underline-offset:2px; }
+.map-crumbs button:hover { color:#e0e2e8; }
+.map-crumbs span { color:#d4d7de; }
+.map-crumbs>svg { color:#5a5e68;flex-shrink:0; }
+@media(max-width:900px){ .map-layers { right:10px;top:12px;max-width:200px; } .map-crumbs { display:none; } }
+/* --- Porta verso una mappa collegata --- */
+.map-door { position:absolute;display:flex;flex-direction:column;align-items:center;gap:4px;background:transparent;border:0;padding:0;z-index:5;transform-origin:bottom center; }
+.map-door>span { display:flex;align-items:center;justify-content:center;width:31px;height:31px;border-radius:50%;border:1px solid #9aa8a2;background:#1c2422e6;color:#cfe0d8;box-shadow:0 3px 10px #00000055; }
+.map-door>b { font-weight:500;font-size:12px;color:#dfe6e2;background:#16211de6;border:1px solid #46534d;border-radius:3px;padding:2px 7px;white-space:nowrap; }
+.map-door:hover>span { border-color:#cfe0d8;background:#26332e; }
+.map-missing { display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;width:100%;height:100%;border:1px dashed #4a4e57;border-radius:4px;background:#1a1c22;color:#8f939c;font-size:13px;text-align:center;padding:20px; }
+/* --- Modulo della mappa e delle tabelle --- */
+.map-editor,.table-editor { display:flex;flex-direction:column;gap:13px;padding:16px;border:1px solid #363944;border-radius:4px;background:#16181d; }
+.table-editor>.row-between label { display:flex;align-items:center;gap:8px;font-size:13px;color:#b9bcc4; }
+.table-rows { display:flex;flex-direction:column;gap:7px;max-height:320px;overflow-y:auto; }
+.table-row-edit { display:flex;align-items:center;gap:9px; }
+.table-row-number { min-width:26px;text-align:right;font-size:12px;color:#8b909e;font-variant-numeric:tabular-nums; }
+.table-row-edit>input { flex:1;min-width:0; }
+.table-row-edit>button { display:flex;background:transparent;border:0;padding:5px;color:#8b909e;border-radius:3px;flex-shrink:0; }
+.table-row-edit>button:hover { color:#d8c0c6;background:#2c2429; }
+/* --- Tabelle nello schermo del DM --- */
+.tables-layout { display:flex;flex-direction:column;gap:16px; }
+.tables-head .eyebrow { font-size:12px;letter-spacing:.14em; }
+.tables-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;align-items:start; }
+.table-card { display:flex;flex-direction:column;gap:11px; }
+.table-card h2 { font-size:21px; }
+.table-result { padding:14px;border:1px solid #4a4436;border-left:3px solid #a89870;border-radius:3px;background:#1e1c17; }
+.table-result .eyebrow { display:block;font-size:11px;letter-spacing:.13em;color:#a89870;margin-bottom:6px; }
+.table-result strong { font-family:Georgia,serif;font-weight:400;font-size:17px;line-height:1.5;color:#eae4d5; }
+.table-card-actions { display:flex;flex-wrap:wrap;gap:9px;margin-top:auto; }
