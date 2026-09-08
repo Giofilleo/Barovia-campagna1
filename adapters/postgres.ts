@@ -12,7 +12,7 @@ export function postgresQuery(source:string){
  sql=sql.replace("json_extract(data,'$.image')", "data::jsonb ->> 'image'")
   .replace("json_extract(data,'$.markerImage')", "data::jsonb ->> 'markerImage'")
   .replace("EXISTS (SELECT 1 FROM json_each(records.data,'$.images') WHERE json_extract(value,'$.id') = ?)","EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(records.data::jsonb -> 'images','[]'::jsonb)) AS item WHERE item ->> 'id' = ?)");
- sql=sql.replace(/\b(FROM|JOIN|INTO|UPDATE) (users|sessions|attempts|records|settings|uploads)\b/g,'$1 barovia.$2');
+ sql=sql.replace(/\b(FROM|JOIN|INTO|UPDATE) (users|sessions|attempts|records|settings|uploads|revisions)\b/g,'$1 barovia.$2');
  // PostgreSQL's UPSERT requires qualification to distinguish existing columns
  // from EXCLUDED. SQLite accepts the same logic without this qualification.
  if(sql.includes('ON CONFLICT(key) DO UPDATE'))sql=sql.replace(/CASE WHEN reset/g,'CASE WHEN attempts.reset').replace(/ELSE count \+ 1/g,'ELSE attempts.count + 1').replace(/ELSE reset END/g,'ELSE attempts.reset END');
