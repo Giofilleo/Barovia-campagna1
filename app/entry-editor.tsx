@@ -45,6 +45,8 @@ export default function EntryEditor({entry,state,onClose,onSave,onPosition}:{ent
  {kind==='map'&&<section className="map-editor">
   <ImageField value={draft.data.image||''} label="Immagine della mappa" onBusy={setUploading} onChange={v=>data({image:v})}/>
   <p className="help-text">Le proporzioni vengono lette dall’immagine appena caricata, così la mappa non risulta schiacciata.</p>
+  <div className="form-grid"><label className="field">Icona dell’ingresso<Choice value={draft.data.markerIcon||'castle'} onChange={v=>data({markerIcon:v})} options={[{value:'castle',label:'Castello'},{value:'town',label:'Insediamento'},{value:'pin',label:'Segnaposto'},{value:'trees',label:'Bosco'},{value:'skull',label:'Pericolo'},{value:'clue',label:'Indizio'}]}/></label><div><ImageField value={draft.data.markerImage||''} label="Immagine dell’ingresso" onBusy={setUploading} onChange={v=>data({markerImage:v})}/></div></div>
+  <p className="help-text">Sulla mappa che la contiene, questa voce si comporta come un luogo qualsiasi: un clic apre questa scheda, un doppio clic entra nella mappa.</p>
   <div className="form-grid"><label className="field">Larghezza reale in miglia<input type="number" min={.001} step=".1" value={draft.data.widthMiles??1} onChange={e=>data({widthMiles:+e.target.value})}/></label><label className="field">Mappa che la contiene<Choice value={draft.data.parent||''} onChange={v=>data({parent:v})} options={[{value:'',label:'Barovia · mappa principale'},...state.records.filter(r=>r.kind==='map'&&r.id!==draft.id).map(r=>({value:r.id,label:r.title}))]}/></label></div>
   <p className="help-text">Sulla mappa che la contiene compare una porta d’accesso in questa posizione. Apri quella mappa e usa «Scegli sulla mappa» per spostarla.</p>
  </section>}
