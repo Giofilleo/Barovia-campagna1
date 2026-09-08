@@ -1,0 +1,15 @@
+{
+  "name": "Barovia · Gestione campagna",
+  "short_name": "Barovia",
+  "description": "Mappa, cronologia e archivio della campagna Curse of Strahd.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#101114",
+  "theme_color": "#101114",
+  "lang": "it",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
