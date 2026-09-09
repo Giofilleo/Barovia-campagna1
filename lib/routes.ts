@@ -1,4 +1,4 @@
-import {type Point,type Entry} from './campaign';
+import {placed,type Point,type Entry} from './campaign';
 export const MAP_RATIO=1558/1000;
 export function mapDistance(a:Point,b:Point){return Math.hypot(a.x-b.x,(a.y-b.y)/MAP_RATIO);}
 export function routeAnchors(event:Entry,previous?:Entry):Point[]{
@@ -17,4 +17,6 @@ export function sampleRoute(points:Point[],curve:boolean):Point[]{
 export function routeLength(points:Point[]){return points.slice(1).reduce((sum,p,i)=>sum+mapDistance(p,points[i]),0);}
 export function pointAt(points:Point[],fraction:number){if(!points.length)return{x:.5,y:.5};if(points.length===1)return points[0];let remaining=routeLength(points)*Math.max(0,Math.min(1,fraction));for(let i=1;i<points.length;i++){const d=mapDistance(points[i-1],points[i]);if(remaining<=d){const t=d?remaining/d:0;return{x:points[i-1].x+(points[i].x-points[i-1].x)*t,y:points[i-1].y+(points[i].y-points[i-1].y)*t};}remaining-=d;}return points.at(-1)!;}
 export function partialRoute(points:Point[],fraction:number){if(!points.length)return[];const length=routeLength(points)*Math.max(0,Math.min(1,fraction));let traversed=0;const result=[points[0]];for(let i=1;i<points.length;i++){const d=mapDistance(points[i-1],points[i]);if(traversed+d>length)break;result.push(points[i]);traversed+=d;}return[...result,pointAt(points,fraction)];}
-export function nearbyPlace(party:Point,records:Entry[],mapWidthMiles:number,radiusMiles=.25){const nearest=records.filter(r=>r.kind==='pin').map(r=>({record:r,miles:mapDistance(party,r.data as Point)*mapWidthMiles})).sort((a,b)=>a.miles-b.miles)[0];return nearest&&nearest.miles<=radiusMiles?nearest.record:null;}
+/** I luoghi senza posizione non partecipano: esistono nel glossario ma non stanno
+ *  da nessuna parte sulla mappa, quindi non possono essere «vicini» al gruppo. */
+export function nearbyPlace(party:Point,records:Entry[],mapWidthMiles:number,radiusMiles=.25){const nearest=records.filter(r=>r.kind==='pin'&&placed(r)&&!r.data.map).map(r=>({record:r,miles:mapDistance(party,r.data as Point)*mapWidthMiles})).sort((a,b)=>a.miles-b.miles)[0];return nearest&&nearest.miles<=radiusMiles?nearest.record:null;}
