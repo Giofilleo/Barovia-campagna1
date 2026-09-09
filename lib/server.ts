@@ -1,6 +1,6 @@
 import { getDb,type Database as D1Database } from '../db';
 import { accountSeed } from './account-seed';
-import { DEFAULTS, DEFAULT_SUPPLIES, DEFAULT_DM_BOARD, DEFAULT_BESTIARY, readSupplies, imageIds, inlineReferences, KINDS, visible, editable, deletable, type Entry, type Member, type Settings } from './campaign';
+import { DEFAULTS, DEFAULT_SUPPLIES, DEFAULT_DM_BOARD, DEFAULT_BESTIARY, CHARACTER_TYPES, readSupplies, imageIds, inlineReferences, KINDS, visible, editable, deletable, type Entry, type Member, type Settings } from './campaign';
 export type ObjectBucket={put:(id:string,bytes:ArrayBuffer,options:{httpMetadata:{contentType:string}})=>Promise<unknown>;get:(id:string)=>Promise<{body:ReadableStream<Uint8Array>}|null>;delete:(id:string)=>Promise<unknown>};
 export type Bindings={DB:D1Database;BUCKET:ObjectBucket};
 const COOKIE='barovia_session';
@@ -60,16 +60,22 @@ function tagList(v:unknown){return Array.isArray(v)?Array.from(new Set(v.map((t:
 function validateKey(key:unknown){if(typeof key!=='string'||key.length<10||key.length>128)fail(400,'La chiave deve contenere da 10 a 128 caratteri.');return key as string;}
 function point(p:any){return {x:number(p?.x,0,1,.5),y:number(p?.y,0,1,.5)};}
 function cleanData(kind:string,d:any){d=d&&typeof d==='object'?d:{};const result:any={images:Array.isArray(d.images)?d.images.slice(0,12).map((x:any)=>({id:cleanText(x?.id,80),caption:cleanText(x?.caption,240)})).filter((x:any)=>x.id):[],tags:tagList(d.tags)};
- if(kind==='pin'||kind==='event'){Object.assign(result,point(d));result.category=cleanText(d.category,40,'luogo');if(kind==='pin'){result.markerImage=cleanText(d.markerImage,80);result.markerIcon=cleanText(d.markerIcon,30,'pin');result.map=cleanText(d.map,80);}}
+ if(kind==='pin'||kind==='event'){Object.assign(result,point(d));result.category=cleanText(d.category,40,'luogo');if(kind==='pin'){result.markerImage=cleanText(d.markerImage,80);result.markerIcon=cleanText(d.markerIcon,30,'pin');result.map=cleanText(d.map,80);
+  // Un luogo puo esistere nel glossario senza stare ancora sulla mappa. Il campo e
+  // al negativo: chi e stato salvato prima non lo ha e resta quindi posizionato.
+  result.unplaced=d.unplaced===true;}}
  // Una mappa aggiuntiva: immagine, proporzioni, scala propria e posizione sulla mappa
  // che la contiene. La mappa principale resta quella del sito e non e un contenuto.
- if(kind==='map'){Object.assign(result,point(d));result.image=cleanText(d.image,80);result.markerImage=cleanText(d.markerImage,80);result.ratio=number(d.ratio,.05,20,1.558);result.widthMiles=number(d.widthMiles,.001,10000,1);result.calibrated=d.calibrated===true;result.parent=cleanText(d.parent,80);result.markerIcon=cleanText(d.markerIcon,30,'castle');result.category=cleanText(d.category,40,'luogo');}
+ if(kind==='map'){Object.assign(result,point(d));result.image=cleanText(d.image,80);result.markerImage=cleanText(d.markerImage,80);result.ratio=number(d.ratio,.05,20,1.558);result.widthMiles=number(d.widthMiles,.001,10000,1);result.calibrated=d.calibrated===true;result.parent=cleanText(d.parent,80);result.markerIcon=cleanText(d.markerIcon,30,'castle');result.category=cleanText(d.category,40,'luogo');result.unplaced=d.unplaced===true;}
  if(kind==='table'){result.entries=Array.isArray(d.entries)?d.entries.slice(0,200).map((x:any)=>({id:cleanText(x?.id,80)||crypto.randomUUID(),text:cleanText(x?.text,300)})).filter((x:any)=>x.text):[];result.dice=cleanText(d.dice,20);}
  if(kind==='event'){result.minutes=Math.floor(number(d.minutes,0,500000000,480));result.path=Array.isArray(d.path)?d.path.slice(0,1000).map(point):[];result.routeVersion=d.routeVersion===2?2:1;result.curve=d.curve===true;}
  if(kind==='character'){result.subtitle=cleanText(d.subtitle,180);result.status=cleanText(d.status,50,'Sconosciuto');result.image=cleanText(d.image,80);
+  // Sottotipo del glossario. Chi e stato salvato prima non lo ha e vale
+  // «personaggio», cioe esattamente il comportamento precedente.
+  result.glossaryType=(CHARACTER_TYPES as readonly string[]).includes(d.glossaryType)?d.glossaryType:'personaggio';
   // Scheda del personaggio giocante: presente solo se qualcuno la compila, cosi i
   // personaggi non giocanti gia salvati restano esattamente come sono.
-  result.pc=d.pc===true;
+  result.pc=d.pc===true&&result.glossaryType==='personaggio';
   if(result.pc){result.player=cleanText(d.player,60);result.role=cleanText(d.role,80);result.level=optional(d.level,1,30);result.hp=optional(d.hp,-999,9999);result.maxHp=optional(d.maxHp,0,9999);result.ac=optional(d.ac,0,99);result.passive=optional(d.passive,0,99);result.speed=optional(d.speed,0,999);}}
  if(kind==='secret'){result.section=['session','scene','npc','clue','rules'].includes(d.section)?d.section:'session';result.pinned=d.pinned===true;result.tasks=Array.isArray(d.tasks)?d.tasks.slice(0,100).map((t:any)=>({id:cleanText(t?.id,80),text:cleanText(t?.text,250),done:t?.done===true})).filter((t:any)=>t.text):[];}
  if(kind==='journal'){result.session=Math.floor(number(d.session,1,10000,1));result.date=cleanText(d.date,40);const from=optional(d.minutes,0,500000000);const to=optional(d.endMinutes,0,500000000);if(from!==undefined)result.minutes=Math.floor(from);if(to!==undefined)result.endMinutes=Math.floor(to);}

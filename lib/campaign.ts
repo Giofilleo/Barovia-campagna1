@@ -20,6 +20,60 @@ export function editable(record:Entry,user:Member){return visible(record,user)&&
 export function deletable(record:Entry,user:Member){return editable(record,user)&&(record.owner===user.id||user.role==='dm');}
 export function visibilityLabel(r:Entry,users:Member[]){if(r.kind==='secret')return 'Solo DM';if(r.audience.includes('*'))return 'Tutto il gruppo';const ids=new Set([r.owner,...r.audience]);return ids.size===1?'Personale':Array.from(ids).map(id=>users.find(u=>u.id===id)?.name).filter(Boolean).join(', ');}
 
+/* --- Glossario ----------------------------------------------------------------
+   Il glossario non è un archivio a parte: è un indice che raccoglie in un unico
+   elenco le voci che il gruppo incontra, qualunque sia la sezione in cui vivono.
+   I luoghi sono gli stessi segnalini della mappa — compresi quelli che hanno una
+   mappa propria, che restano luoghi a tutti gli effetti — quindi non esistono due
+   copie da tenere allineate: una modifica fatta qui è la stessa che si vede là.
+   Personaggi, creature e voci generiche condividono invece un solo tipo di
+   record e si distinguono per un sottotipo salvato nei dati della voce. */
+export const GLOSSARY_KINDS:Kind[]=['character','pin','map','faction'];
+/** Sottotipo delle voci di tipo «personaggio». Le voci salvate prima di questo
+ *  aggiornamento non hanno il campo: valgono come «personaggio», come sempre. */
+export const CHARACTER_TYPES=['personaggio','creatura','altro'] as const;
+export type CharacterType=typeof CHARACTER_TYPES[number];
+export type GlossaryType=CharacterType|'luogo'|'fazione';
+export function characterType(data:Record<string,any>):CharacterType{const value=data?.glossaryType;return (CHARACTER_TYPES as readonly string[]).includes(value)?value as CharacterType:'personaggio';}
+export function glossaryType(r:Entry):GlossaryType{return r.kind==='pin'||r.kind==='map'?'luogo':r.kind==='faction'?'fazione':characterType(r.data);}
+/** Quale icona mostrare: un luogo con mappa propria si distingue dagli altri. */
+export function glossaryIcon(r:Entry){return r.kind==='map'?'mappa':glossaryType(r);}
+export function inGlossary(r:Entry){return GLOSSARY_KINDS.includes(r.kind);}
+/** Le sezioni del glossario, nell'ordine in cui compaiono. «kind» dice in quale
+ *  tipo di record finisce una voce nuova; «dmOnly» le sezioni che solo il DM
+ *  può creare, perché sono gli stessi permessi che valgono già altrove. */
+export const GLOSSARY_SECTIONS:{id:GlossaryType;kind:Kind;label:string;plural:string;hint:string;dmOnly?:boolean}[]=[
+ {id:'personaggio',kind:'character',label:'Personaggio',plural:'Personaggi',hint:'Chi avete incontrato: alleati, avversari, comparse e i personaggi del gruppo.'},
+ {id:'creatura',kind:'character',label:'Creatura',plural:'Creature e mostri',hint:'Bestie, non morti e mostri affrontati o soltanto avvistati.'},
+ {id:'luogo',kind:'pin',label:'Luogo',plural:'Luoghi',hint:'Gli stessi segnalini della mappa, comprese le mappe di dettaglio. Un luogo può restare senza posizione finché non sapete dov’è.'},
+ {id:'fazione',kind:'faction',label:'Fazione',plural:'Fazioni',hint:'Gruppi, casate e ordini, con la reputazione gestita in «Reputazione».',dmOnly:true},
+ {id:'altro',kind:'character',label:'Voce generica',plural:'Altre voci',hint:'Oggetti, usanze, leggende, termini in barovo: tutto ciò che non rientra altrove.'},
+];
+export const GLOSSARY_SECTION=Object.fromEntries(GLOSSARY_SECTIONS.map(s=>[s.id,s])) as Record<GlossaryType,typeof GLOSSARY_SECTIONS[number]>;
+/** Un luogo o una mappa possono esistere nel glossario senza stare sulla mappa:
+ *  è il caso di un posto di cui si conosce il nome ma non ancora la posizione.
+ *  Il campo è al negativo di proposito: le voci salvate prima di questo
+ *  aggiornamento non lo hanno e restano quindi posizionate esattamente com'erano. */
+export function placed(r:Entry){return (r.kind!=='pin'&&r.kind!=='map')||r.data.unplaced!==true;}
+/** Come si chiama una voce quando la si nomina da sola: per il glossario vale il
+ *  sottotipo («Creatura», «Luogo»…), per tutto il resto l'etichetta di sempre. */
+export function entryLabel(r:Entry){return inGlossary(r)?GLOSSARY_SECTION[glossaryType(r)].label:KINDS[r.kind].label;}
+/** L'immagine che rappresenta una voce del glossario, se ne ha una. */
+export function glossaryImage(r:Entry){return (r.kind==='pin'?r.data.markerImage:r.kind==='map'?(r.data.markerImage||r.data.image):r.data.image)||'';}
+/** La targhetta sull'immagine nelle schede del glossario. */
+export function glossaryStatus(r:Entry){
+ if(r.kind==='map')return placed(r)?'Con mappa propria':'Posizione sconosciuta';
+ if(r.kind==='pin')return placed(r)?'Sulla mappa':'Posizione sconosciuta';
+ if(r.kind==='faction')return 'Reputazione '+((r.data.reputation??0)>0?'+':'')+(r.data.reputation??0);
+ return characterType(r.data)==='altro'?'Voce del glossario':(r.data.status||'Sconosciuto');
+}
+/** La riga sotto il titolo nelle schede del glossario. */
+export function glossarySubtitle(r:Entry){
+ if(r.kind==='pin'||r.kind==='map'){const tipo=r.data.category?String(r.data.category).replace(/^./,c=>c.toUpperCase()):'Luogo';return r.kind==='map'?tipo+' · con mappa':tipo;}
+ if(r.kind==='faction')return r.data.subtitle||'Fazione';
+ return r.data.subtitle||GLOSSARY_SECTION[characterType(r.data)].label;
+}
+
 export type GalleryImage={id:string;caption:string};
 export type Supplies={rations:number;partySize:number;foodPerPerson:number;targetDays:number;history:{id:string;at:number;by:string;note:string;rations:number;before:{rations:number};reversed?:boolean}[]};
 export const DEFAULT_SUPPLIES:Supplies={rations:0,partySize:6,foodPerPerson:1,targetDays:7,history:[]};
