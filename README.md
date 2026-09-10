@@ -1,5 +1,7 @@
 # Barovia su Netlify e Supabase
 
+> **Aggiornamento da V4:** leggi [la guida V5](AGGIORNAMENTO-V5.md) per provare il branch e il Combat Log. Su un sito già funzionante non occorre rieseguire SQL o importare dati.
+
 **Per iniziare senza conoscenze tecniche:** estrai tutto il pacchetto e apri `INIZIA-QUI.html` con un doppio clic. La guida contiene passaggi numerati, il testo SQL da copiare, un modulo locale che prepara le variabili e le istruzioni per Windows e Mac. Questo documento è il riferimento tecnico aggiuntivo.
 
 Questa versione conserva l’interfaccia e le funzioni della campagna: mappa, cronologia e percorsi, immagini, appunti, glossario, diario, tesoro, grafo, reputazione, provviste e strumenti DM. Le provviste richiedono soltanto razioni.

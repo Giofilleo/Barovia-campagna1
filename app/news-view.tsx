@@ -3,7 +3,7 @@ import React,{useMemo,useState} from 'react';
 import {BellRing,Check as CheckIcon,ChevronRight,Clock3,Sparkles} from 'lucide-react';
 import {Choice} from './ui';
 import {KINDS,type Entry,type State} from '@/lib/campaign';
-const ICON_ORDER=['pin','event','note','character','journal','treasure','faction','secret'];
+const ICON_ORDER=['pin','event','note','character','journal','treasure','faction','map','table','combat','secret'];
 /** Quanto tempo reale è passato, detto come lo direbbe una persona. */
 function ago(at:number){
  const minutes=Math.round((Date.now()-at)/60000);
@@ -35,13 +35,14 @@ export default function NewsView({state,openEntry,onSeen,busy}:{state:State;open
  return <div className="content-page news-page">
   <div className="page-heading">
    <div><div className="eyebrow">DALL’ULTIMA VOLTA</div><h1>Novità<span className="heading-dot">.</span></h1></div>
-   <button className="btn primary" disabled={busy||!fresh.length} onClick={()=>void onSeen(newest)}><CheckIcon size={17}/>Segna tutto come letto</button>
+   <button className="btn primary" disabled={busy||!fresh.length||kind!=='all'} onClick={()=>void onSeen(newest)}><CheckIcon size={17}/>Segna tutto come letto</button>
   </div>
   <div className="collection-toolbar">
    <span className="outlined-badge"><BellRing size={16}/>{fresh.length?fresh.length+(fresh.length===1?' voce nuova':' voci nuove'):'Nessuna novità'}</span>
    <Choice label="Tipo di contenuto" value={kind} onChange={setKind} options={[{value:'all',label:'Tutti i contenuti'},...ICON_ORDER.filter(k=>state.records.some(r=>r.kind===k)).map(k=>({value:k,label:KINDS[k as keyof typeof KINDS].plural}))]}/>
    <span className="muted small">{seen?'Segnalibro: '+ago(seen):'Segnalibro non ancora impostato'}</span>
   </div>
+  {kind!=='all'&&<p className="help-text">Torna a «Tutti i contenuti» per segnare lette tutte le novità. Il filtro non modifica il segnalibro.</p>}
   {fresh.length>0&&<section className="news-block">
    <div className="news-block-head"><Sparkles size={16}/><span className="eyebrow">DA LEGGERE</span><span className="rule"/></div>
    <div className="news-list">{fresh.map(r=>row(r,true))}</div>
@@ -50,6 +51,6 @@ export default function NewsView({state,openEntry,onSeen,busy}:{state:State;open
    <div className="news-block-head"><Clock3 size={16}/><span className="eyebrow">{fresh.length?'GIÀ VISTE':'CRONOLOGIA DELLE MODIFICHE'}</span><span className="rule"/></div>
    {older.length?<div className="news-list">{older.map(r=>row(r,false))}</div>:<p className="help-text">Nessuna modifica registrata.</p>}
   </section>
-  <p className="page-footnote">Compaiono solo i contenuti che il tuo account può leggere, e solo le modifiche fatte da qualcun altro. Il segnalibro è personale e ti segue su ogni dispositivo.</p>
+  <p className="page-footnote">Compaiono solo i contenuti che il tuo account può leggere, le novità evidenziano le modifiche fatte dagli altri. Il segnalibro è personale e ti segue su ogni dispositivo.</p>
  </div>;
 }

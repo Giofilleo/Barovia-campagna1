@@ -1,3 +1,4 @@
+import {cleanCombatants,recordCombatChange} from './combat';
 import { getDb,type Database as D1Database } from '../db';
 import { accountSeed } from './account-seed';
 import { DEFAULTS, DEFAULT_SUPPLIES, DEFAULT_DM_BOARD, DEFAULT_BESTIARY, CHARACTER_TYPES, readSupplies, imageIds, inlineReferences, KINDS, visible, editable, deletable, type Entry, type Member, type Settings } from './campaign';
@@ -19,7 +20,7 @@ function fail(status:number,message:string):never {throw new ApiError(status,mes
 function json(data:unknown,status=200,headers:Record<string,string>={}){return Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});}
 function unpack(r:any):Entry{return {...r,audience:JSON.parse(r.audience),data:JSON.parse(r.data),links:JSON.parse(r.links)};}
 function member(u:any):Member{return{id:u.id,name:u.name,role:u.role,active:u.active,changed:u.changed,seen:Number(u.seen)||0};}
-async function body(req:Request){const str=await req.text();if(str.length>150000)fail(413,'Il contenuto è troppo grande.');try{return JSON.parse(str);}catch{fail(400,'Richiesta non valida.');}}
+async function body(req:Request){const str=await req.text();if(str.length>2500000)fail(413,'Il contenuto è troppo grande.');try{return JSON.parse(str);}catch{fail(400,'Richiesta non valida.');}}
 /** Netlify espone l'indirizzo del visitatore con intestazioni proprie: cf-connecting-ip
  *  appartiene a Cloudflare e resta solo come ripiego per l'ambiente di partenza. */
 function clientAddress(req:Request){
@@ -125,7 +126,7 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
  if(path==='/api/export'){
   const ids=new Set([...state.records.flatMap(r=>imageIds(r.data)),state.settings.partyImage].filter(Boolean));
   const uploads=(await db.prepare('SELECT * FROM uploads').all()).results.filter(u=>ids.has(u.id as string)||u.owner===user.id);
-  return json({format:'barovia-transfer',schemaVersion:1,exportedAt:new Date().toISOString(),exportedBy:user.id,users:state.users.map(u=>({id:u.id,name:u.name,role:u.role,active:u.active})),records:state.records,uploads,...(user.role==='dm'?{settings:state.settings,supplies:state.supplies,dmBoard:state.dmBoard}:{})});
+  return json({format:'barovia-transfer',schemaVersion:1,exportedAt:new Date().toISOString(),exportedBy:user.id,users:state.users.map(u=>({id:u.id,name:u.name,role:u.role,active:u.active})),records:state.records,uploads,...(user.role==='dm'?{settings:state.settings,supplies:state.supplies,dmBoard:state.dmBoard,bestiary:state.bestiary}:{})});
  }
  // Il browser richiama questo indirizzo di continuo: se nulla è cambiato rispondiamo
  // con un'impronta e nessun contenuto, invece di rispedire l'archivio intero.
@@ -139,6 +140,7 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
  const b=await body(req);const old=b.id?await readRecord(db,b.id):null;
  if(req.method==='DELETE'){
  if(!old||!deletable(old,user))fail(403,'Non puoi eliminare questo contenuto.');
+ if(old.kind==='map'){const children=(await allRecords(db)).filter(r=>(r.kind==='pin'&&r.data.map===old.id)||(r.kind==='map'&&r.data.parent===old.id));if(children.length)fail(400,'La mappa contiene ancora luoghi: spostali prima di eliminarla.');}
  const r=await db.prepare('DELETE FROM records WHERE id = ? AND version = ?').bind(old.id,b.version).run();if(!r.meta.changes)fail(409,'Il contenuto è stato modificato. Ricaricalo prima di eliminarlo.');await db.prepare('DELETE FROM revisions WHERE record_id = ?').bind(old.id).run();return json({ok:true});
  }
  if(req.method!=='POST'&&req.method!=='PUT')fail(405,'Metodo non consentito.');
@@ -153,7 +155,8 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
   if(user.role!=='dm')fail(403,'Solo il DM può dare una mappa a un luogo.');
   kind=b.kind;
  }
- if(['secret','faction','table','map'].includes(kind)&&user.role!=='dm')fail(403,'Questa sezione è riservata al DM.');
+ if(['secret','faction','table','map','combat'].includes(kind)&&user.role!=='dm')fail(403,'Questa sezione è riservata al DM.');
+ if(kind==='combat'&&!old)fail(400,'Archivia il combattimento dallo schermo DM.');
  const title=cleanText(b.title,160);if(!title)fail(400,'Inserisci un titolo.');
  const owner=old?.owner||user.id;const users=await allUsers(db);const known=new Set(users.map(u=>u.id));
  let audience=(Array.isArray(b.audience)?b.audience:[]).filter((id:any)=>typeof id==='string'&&(id==='*'||known.has(id)));
@@ -173,9 +176,10 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
   }
  }
  const data=cleanData(kind,incoming);
+ if(kind==='combat'){Object.assign(data,old!.data,{images:data.images,tags:data.tags,minutes:Math.floor(number(incoming?.minutes,0,500000000,old!.data.minutes))});}
  for(const imageId of imageIds(data)){const upload=await db.prepare('SELECT * FROM uploads WHERE id = ?').bind(imageId).first<any>();if(!upload||(upload.owner!==user.id&&!imageIds(old?.data||{}).includes(imageId)))fail(403,'Immagine non disponibile.');}
  const id=old?.id||(typeof b.id==='string'&&/^[0-9a-f-]{36}$/.test(b.id)?b.id:crypto.randomUUID());const updated=Date.now();const values=[title,content,JSON.stringify(audience),folder,JSON.stringify(data),JSON.stringify(links),updated,user.id,kind];
- if(old){const result=await db.prepare('UPDATE records SET title = ?, body = ?, audience = ?, folder = ?, data = ?, links = ?, updated = ?, editor = ?, kind = ?, version = version + 1 WHERE id = ? AND version = ?').bind(...values,id,b.version).run();if(!result.meta.changes)fail(409,'Qualcuno ha aggiornato questa voce. La tua bozza resta salvata: chiudi e riapri per ritrovarla e unire le modifiche.');await storeRevision(db,old);}
+ if(old){await db.transaction(async tx=>{const result=await tx.prepare('UPDATE records SET title = ?, body = ?, audience = ?, folder = ?, data = ?, links = ?, updated = ?, editor = ?, kind = ?, version = version + 1 WHERE id = ? AND version = ?').bind(...values,id,b.version).run();if(!result.meta.changes)fail(409,'Qualcuno ha aggiornato questa voce. La tua bozza resta salvata: chiudi e riapri per ritrovarla e unire le modifiche.');await storeRevision(tx,old);});}
  else await db.prepare('INSERT INTO records (title,body,audience,folder,data,links,updated,editor,kind,id,owner,version) VALUES (?,?,?,?,?,?,?,?,?,?,?,1)').bind(...values,id,owner).run();
  return json({ok:true,id});
  }
@@ -187,8 +191,10 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
  if(path==='/api/revisions'&&req.method==='GET'){
  const id=url.searchParams.get('id')||'';const target=await readRecord(db,id);
  if(!target||!visible(target,user))fail(404,'Contenuto non disponibile.');
+ if(target.owner!==user.id)fail(403,'Le stesure precedenti sono riservate all’autore della pagina.');
+ const accessible=new Set((await allRecords(db)).filter(r=>visible(r,user)).map(r=>r.id));
  const rows=(await db.prepare('SELECT id,at,editor,title,body,data FROM revisions WHERE record_id = ? ORDER BY at DESC').bind(id).all<any>()).results;
- return json({revisions:rows.slice(0,10).map(r=>({id:r.id,at:Number(r.at),editor:r.editor,title:r.title,body:r.body,data:JSON.parse(r.data)}))});
+ return json({revisions:rows.slice(0,10).map(r=>({id:r.id,at:Number(r.at),editor:r.editor,title:r.title,body:r.body.replace(/\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g,(token:string,id:string)=>accessible.has(id)?token:'[['+id+']]'),data:JSON.parse(r.data)}))});
  }
  if(path==='/api/bestiary'&&req.method==='PUT'){
  if(user.role!=='dm')fail(403,'Questi strumenti sono riservati al DM.');const b=await body(req);const d=b.data||{};
@@ -215,9 +221,29 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
  }
  if(path==='/api/dm-board'&&req.method==='PUT'){
  if(user.role!=='dm')fail(403,'Questi strumenti sono riservati al DM.');const b=await body(req);const d=b.data||{};
- const combatants=Array.isArray(d.combatants)?d.combatants.slice(0,100).map((c:any)=>({id:cleanText(c.id,80)||crypto.randomUUID(),name:cleanText(c.name,100,'Combattente'),initiative:number(c.initiative,-100,100,0),ac:number(c.ac,0,100,10),hp:Math.min(number(c.maxHp,1,100000,10),number(c.hp,0,100000,10)),maxHp:number(c.maxHp,1,100000,10),conditions:cleanText(c.conditions,250),notes:cleanText(c.notes,1000)})):[];
- const next={round:Math.floor(number(d.round,1,100000,1)),turnId:combatants.some((c:any)=>c.id===d.turnId)?d.turnId:'',combatants};
+ const row=await db.prepare('SELECT value,version FROM settings WHERE id = ?').bind('dm-board').first<any>();
+ if((row?.version||0)!==b.version)fail(409,'L’incontro è cambiato in un altro accesso. Aggiorna prima di riprovare.');
+ const previous=row?JSON.parse(row.value):DEFAULT_DM_BOARD;
+ if(previous.log&&!Object.hasOwn(d,'log'))fail(409,'Questa scheda usa una versione precedente del tracker. Ricarica il sito prima di modificare l’incontro.');
+ const settings=await db.prepare('SELECT value FROM settings WHERE id = ?').bind('campaign').first<any>();
+ let next;try{const combatants=cleanCombatants(d.combatants);next=recordCombatChange(previous,{round:Math.floor(number(d.round,1,100000,1)),turnId:combatants.some(c=>c.id===d.turnId)?d.turnId:'',combatants},b.action,JSON.parse(settings.value).minutes);}catch(e){fail(400,(e as Error).message);}
  await saveStateRow(db,'dm-board',next,b.version);return json({ok:true});
+ }
+ if(path==='/api/combat/archive'&&req.method==='POST'){
+ if(user.role!=='dm')fail(403,'Solo il DM può archiviare un combattimento.');const b=await body(req);
+ const id=cleanText(b.encounterId,80);if(!id)fail(400,'Registra almeno un’azione prima di archiviare.');
+ const archived=await readRecord(db,id);if(archived){if(archived.kind!=='combat'||archived.owner!==user.id)fail(409,'Identificativo già utilizzato.');return json({ok:true,id});}
+ const title=cleanText(b.title,160);if(!title)fail(400,'Dai un titolo al combattimento.');
+ await db.transaction(async tx=>{
+  const row=await tx.prepare('SELECT value,version FROM settings WHERE id = ?').bind('dm-board').first<any>();
+  if(!row||row.version!==b.version)fail(409,'L’incontro è cambiato. Aggiorna prima di archiviarlo.');
+  const board=JSON.parse(row.value);if(board.log?.id!==id)fail(409,'L’incontro da archiviare non è quello attuale.');
+  // Acquire the versioned row before creating the archive. Both writes roll back together.
+  await saveStateRow(tx,'dm-board',DEFAULT_DM_BOARD,b.version);
+  const all=await allRecords(tx);const links=Array.isArray(b.links)?Array.from(new Set(b.links.filter((id:any)=>all.some(r=>r.id===id&&visible(r,user))))):[];
+  const data={...board.log,endedAt:Date.now(),rounds:board.round,images:[],tags:[]};
+  await tx.prepare('INSERT INTO records (id,kind,title,body,owner,audience,folder,data,links,version,updated,editor) VALUES (?,?,?,?,?,?,?,?,?,1,?,?)').bind(id,'combat',title,'',user.id,JSON.stringify([user.id]),'',JSON.stringify(data),JSON.stringify(links),Date.now(),user.id).run();
+ });return json({ok:true,id});
  }
  if(path==='/api/users'&&req.method==='POST'){
  if(user.role!=='dm')fail(403,'Solo il DM gestisce gli accessi.');const b=await body(req);
