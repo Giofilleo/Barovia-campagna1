@@ -24,11 +24,11 @@
   --background: #0f1012; --foreground: #e8e9ea;
   --card: #141517; --card-foreground: #e8e9ea;
   --popover: #191a1d; --popover-foreground: #e8e9ea;
-  --primary: #8d8f96; --primary-foreground: #101113;
+  --primary: #ba8588; --primary-foreground: #101113;
   --secondary: #1d1f22; --secondary-foreground: #e8e9ea;
   --muted: #1a1b1e; --muted-foreground: #a8aaaf;
   --accent: #222428; --accent-foreground: #cccdcf;
-  --destructive: #c0727b; --border: #26282d; --input: #2c2e34; --ring: #93959b;
+  --destructive: #c0727b; --border: #26282d; --input: #2c2e34; --ring: #c99694;
   --radius: .5rem;
   --sidebar: #0d0e0f; --sidebar-foreground: #b3b5b9;
   --sidebar-primary: #9fa1a6; --sidebar-primary-foreground: #121315;
@@ -86,7 +86,7 @@ button:disabled { cursor:not-allowed; opacity:.45; }
 button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible { outline:2px solid #a0a2a7;outline-offset:3px; }
 h1,h2,h3,p { margin:0; }
 ::selection { background:#3d4048; color:#f2f2f3; }
-:root { --gold:#989aa0; --gold-light:#bdbec2; --ink:#0d0e0f; --burgundy:#6a3037; --muted-text:#a7a9ae; }
+:root { --gold:#c39e84; --gold-light:#dcc0aa; --ink:#0d0e0f; --burgundy:#6a3037; --muted-text:#a7a9ae; }
 button, input, textarea { font:inherit; }
 input,textarea { color:var(--foreground); background:#0e0f11; border:1px solid var(--input); border-radius:5px; padding:10px 12px; width:100%; outline:none; min-width:0; }
 input:focus,textarea:focus { border-color:var(--gold); }
@@ -572,7 +572,7 @@ h1,h2,h3{color:#e0dee1!important;}.heading-dot,.empty-ornament,.caption-rule{dis
 .map-canvas>img { animation:barovia-fade-in .45s ease-out; }
 /* I segnalini entrano in scena senza sobbalzi: la posizione non è animata,
    così lo zoom e il trascinamento restano immediati. */
-.map-pin,.party-marker { animation:barovia-pop-in .24s ease-out; }
+.map-pin,.party-marker { animation:barovia-fade-in .24s ease-out; }
 .map-pin>span,.map-pin>b { transition:background-color .16s,border-color .16s,color .16s,opacity .16s,box-shadow .16s; }
 .map-pin:hover>span { transform:translateY(-2px); }
 .map-pin>span { transition:transform .16s ease-out,background-color .16s,border-color .16s,box-shadow .16s; }

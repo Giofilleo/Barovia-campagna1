@@ -9,10 +9,12 @@
     "dev": "npx netlify dev",
     "build": "npm run build:netlify",
     "build:netlify": "tsc --noEmit -p tsconfig.netlify.json && vite build --config vite.netlify.config.ts",
-    "test": "npm run test:postgres && node --test tests/transfer.test.mjs tests/routes.test.mjs",
+    "test": "npm run test:postgres && npm run test:unit",
     "test:postgres": "node scripts/test-postgres.mjs",
     "transfer:import": "node --env-file=.env.netlify.local scripts/import-backups.mjs",
-    "transfer:guided": "node scripts/import-guided.mjs"
+    "transfer:guided": "node scripts/import-guided.mjs",
+    "test:unit": "node --test tests/transfer.test.mjs tests/routes.test.mjs tests/combat.test.mjs tests/deploy.test.mjs",
+    "preview:demo": "node scripts/preview-demo.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
