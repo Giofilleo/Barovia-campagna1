@@ -29,6 +29,7 @@ class PostgresStatement implements Statement {
 }
 export class PostgresDatabase implements Database {
  constructor(readonly executor:QueryExecutor){}
+ transaction<T>(work:(tx:Database)=>Promise<T>):Promise<T>{return this.executor.transaction(tx=>work(new PostgresDatabase(tx)));}
  prepare(sql:string){return new PostgresStatement(this.executor,postgresQuery(sql));}
  async batch(statements:Statement[]){
   if(!statements.every(s=>s instanceof PostgresStatement&&s.executor===this.executor))throw new Error('Invalid database batch');

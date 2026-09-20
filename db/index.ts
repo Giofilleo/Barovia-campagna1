@@ -6,6 +6,7 @@ export interface Statement {
   run():Promise<{meta:{changes:number};success:boolean}>;
 }
 export interface Database {
+  transaction<T>(work:(tx:Database)=>Promise<T>):Promise<T>;
   prepare(sql:string):Statement;
   batch(statements:Statement[]):Promise<unknown[]>;
 }

@@ -5,12 +5,17 @@ import {PostgresDatabase,type QueryExecutor} from '../../adapters/postgres';
 
 // A Netlify invocation may be frozen after returning. Keep PostgreSQL sockets
 // within the request lifetime so a later invocation cannot reuse a stale pool.
-export default async function campaign(request:Request,context:{ip?:string}){
+export default async function campaign(request:Request,context:{ip?:string;deploy?:{context?:string}}){
  let pool:{end:(options:{timeout:number})=>Promise<void>}|undefined;
  let timer:ReturnType<typeof setTimeout>|undefined;
  let phase='configurazione';
  const required=(name:string)=>{const value=process.env[name];if(!value?.trim())throw new Error('Variabile mancante: '+name);return value;};
  try{
+  const preview=['deploy-preview','branch-deploy','preview-server'].includes(context.deploy?.context||process.env.CONTEXT||'');
+  if(preview&&process.env.BAROVIA_ALLOW_PREVIEW_WRITES!=='true'&&request.method!=='GET'){
+   const login=new URL(request.url).pathname==='/api/auth'&&['login','logout'].includes((await request.clone().json().catch(()=>({}))).action);
+   if(!login)return Response.json({error:'Questa anteprima è in sola lettura. Prova i salvataggi nella demo locale o in un database di prova separato.'},{status:403,headers:{'Cache-Control':'no-store'}});
+  }
   const bucket=createStorageBucket(required('SUPABASE_URL'),required('SUPABASE_SERVICE_ROLE_KEY'),process.env.SUPABASE_STORAGE_BUCKET||'barovia-media');
   const sql=postgres(required('DATABASE_URL'),{
    prepare:false,max:1,fetch_types:false,idle_timeout:1,connect_timeout:8,
@@ -48,7 +53,8 @@ export default async function campaign(request:Request,context:{ip?:string}){
   // Always overwrite this header with the provider-verified client address.
   // An internet visitor must not be able to forge the login rate-limit key.
   const headers=new Headers(request.headers);
-  headers.set('cf-connecting-ip',context.ip||'unknown');
+  headers.set('x-nf-client-connection-ip',context.ip||'unknown');
+  headers.delete('client-ip');headers.delete('cf-connecting-ip');headers.delete('x-forwarded-for');
   console.info('Campaign v4: '+request.method+' '+new URL(request.url).pathname.slice(0,100)+'; operazioni database in sequenza');
   const deadline=new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('Timeout dopo 20 secondi: '+phase)),20000);});
   const response=await Promise.race([handleCampaign(new Request(request,{headers}),bindings),deadline]);

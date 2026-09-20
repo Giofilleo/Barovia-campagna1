@@ -10,6 +10,7 @@ await build({entryPoints:['lib/campaign.ts'],bundle:true,platform:'node',format:
 const {handleCampaign,passwordHash}=await import(resolve('.sites-runtime/tests/server.mjs'));
 const {dateParts,toMinutes}=await import(resolve('.sites-runtime/tests/campaign.mjs'));
 class Adapter {
+ async transaction(work){this.db.exec('BEGIN');try{const result=await work(this);this.db.exec('COMMIT');return result;}catch(e){this.db.exec('ROLLBACK');throw e;}}
  constructor(){this.db=new DatabaseSync(':memory:');this.db.exec('PRAGMA foreign_keys=ON;');}
  prepare(sql){const raw=this.db;let values=[];return {bind(...v){values=v;return this;},async first(){return raw.prepare(sql).get(...values)||null;},async all(){return{success:true,results:raw.prepare(sql).all(...values)};},async run(){const r=raw.prepare(sql).run(...values);return{success:true,meta:{changes:Number(r.changes)}};}};}
  async batch(list){this.db.exec('BEGIN');try{const results=[];for(const s of list)results.push(await s.run());this.db.exec('COMMIT');return results;}catch(e){this.db.exec('ROLLBACK');throw e;}}
@@ -413,4 +414,279 @@ await test('La trasformazione è riservata al DM, limitata a luoghi e mappe, e n
  assert.equal(rifiuto.status,400);assert.match(rifiuto.data.error,/contiene ancora/);
  assert.equal((await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===madre.data.id).kind,'map','la mappa resta intatta');
 });
+
+const combatActor=(id,name,values={})=>({id,name,initiative:16,ac:13,hp:10,maxHp:10,conditions:'',notes:'Segreto tattico da non pubblicare',...values});
+const combatAction=(values={})=>({kind:'attack',sourceId:'combat-hero',sourceName:'Nome contraffatto',label:'Spada lunga',outcome:'hit',roll:'18 contro CA',damageType:'tagliente',detail:'',targets:['combat-enemy'],...values});
+const combatState=async()=>(await request('/api/state',{cookie:dm.cookie})).data;
+const combatSave=(state,data,action,cookie=dm.cookie)=>request('/api/dm-board',{method:'PUT',cookie,data:{version:state.dmBoardVersion,data,action}});
+let combatArchivedId;
+
+await test('Combat actions are DM-only and combat archives cannot be fabricated through ordinary creation',async()=>{
+ const state=await combatState();
+ const board={...state.dmBoard,round:3,turnId:'combat-hero',combatants:[combatActor('combat-hero','Lyria test',{hp:100,maxHp:20}),combatActor('combat-enemy','Lupo test',{hp:3}),combatActor('combat-ally','Nier test',{hp:8})]};
+ assert.equal((await combatSave(state,board,undefined,lyria.cookie)).status,403);
+ assert.equal((await request('/api/combat/archive',{method:'POST',cookie:lyria.cookie,data:{encounterId:state.dmBoard.log?.id,version:state.dmBoardVersion,title:'Vietato'}})).status,403);
+ assert.equal((await request('/api/records',{method:'POST',cookie:lyria.cookie,data:record('combat','Falso registro')})).status,403);
+ assert.equal((await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('combat','Falso registro')})).status,400);
+ assert.equal((await combatSave(state,board)).status,200);
+ const saved=await combatState();assert.equal(saved.dmBoard.round,3);assert.equal(saved.dmBoard.combatants[0].hp,20);
+ const player=(await request('/api/state',{cookie:lyria.cookie})).data;assert.equal(player.dmBoard,undefined);assert(!JSON.stringify(player).includes('Segreto tattico da non pubblicare'));
+});
+
+await test('Missing sources, invalid external actors and missed attacks leave the encounter unchanged',async()=>{
+ const state=await combatState();const board={...state.dmBoard,combatants:state.dmBoard.combatants.map(c=>c.id==='combat-enemy'?{...c,hp:1,conditions:'Prono'}:c)};
+ for(const action of [undefined,combatAction({sourceId:'unknown'}),combatAction({sourceId:'_other',sourceName:''}),combatAction({outcome:'miss'}),combatAction({label:''})]){
+  assert.equal((await combatSave(state,board,action)).status,400);
+  const unchanged=await combatState();assert.deepEqual(unchanged.dmBoard,state.dmBoard);assert.equal(unchanged.dmBoardVersion,state.dmBoardVersion);
+ }
+});
+
+await test('A multi-target spell saves actual HP changes and source-bearing conditions in one event',async()=>{
+ const state=await combatState();const before=state.dmBoard.log.events.length;
+ const board={...state.dmBoard,combatants:state.dmBoard.combatants.map(c=>c.id==='combat-enemy'?{...c,hp:-7,conditions:'Stordito'}:c.id==='combat-ally'?{...c,hp:50}:c)};
+ assert.equal((await combatSave(state,board,combatAction({kind:'spell',label:'Esplosione e sollievo',targets:['combat-enemy','combat-ally'],requested:[{id:'combat-enemy',kind:'damage',amount:10},{id:'combat-ally',kind:'heal',amount:42}]}))).status,200);
+ const saved=await combatState();const event=saved.dmBoard.log.events.at(-1);
+ assert.equal(saved.dmBoard.log.events.length,before+1);assert.equal(event.sourceName,'Lyria test');
+ assert.deepEqual(event.targets,['Lupo test','Nier test']);
+ assert.equal(event.effects.find(e=>e.kind==='damage').amount,3);assert.equal(event.effects.find(e=>e.kind==='heal').amount,2);
+ assert.equal(event.effects.find(e=>e.kind==='damage').requested,10);assert.equal(event.effects.find(e=>e.kind==='heal').requested,42);
+ assert.equal(event.effects.find(e=>e.kind==='condition').after,'Stordito');
+ assert.equal(saved.dmBoard.combatants.find(c=>c.id==='combat-enemy').hp,0);assert.equal(saved.dmBoard.combatants.find(c=>c.id==='combat-ally').hp,10);
+ assert.equal((await combatSave(state,board,combatAction())).status,409,'stale actions must not apply damage twice');
+ assert.deepEqual((await combatState()).dmBoard,saved.dmBoard);
+});
+
+await test('Misses, environmental conditions and non-damaging actions survive append-only saving',async()=>{
+ let state=await combatState();
+ assert.equal((await combatSave(state,state.dmBoard,combatAction({outcome:'miss'}))).status,200);
+ state=await combatState();assert.equal(state.dmBoard.log.events.at(-1).outcome,'miss');assert.deepEqual(state.dmBoard.log.events.at(-1).effects,[]);
+ const removed={...state.dmBoard,combatants:state.dmBoard.combatants.map(c=>c.id==='combat-enemy'?{...c,conditions:''}:c)};
+ assert.equal((await combatSave(state,removed,combatAction({kind:'condition',sourceId:'_environment',label:'L’effetto si dissolve',outcome:'other'}))).status,200);
+ state=await combatState();assert.equal(state.dmBoard.log.events.at(-1).sourceName,'Ambiente');assert.equal(state.dmBoard.log.events.at(-1).effects[0].after,'');
+ const original=structuredClone(state.dmBoard.log);const forged={...state.dmBoard,log:{id:'forged',events:[]}};
+ assert.equal((await combatSave(state,forged,combatAction({kind:'spell',label:'Luce',outcome:'success',targets:[]}))).status,200);
+ state=await combatState();assert.equal(state.dmBoard.log.id,original.id);assert.deepEqual(state.dmBoard.log.events.slice(0,original.events.length),original.events);
+ assert.equal(state.dmBoard.log.events.at(-1).label,'Luce');
+ const obsolete={...state.dmBoard};delete obsolete.log;
+ assert.equal((await combatSave(state,obsolete)).status,409,'an old browser must not erase a newly recorded history');
+});
+
+await test('Combat archive closes atomically, refuses stale state and retries without duplicating or clearing a newer encounter',async()=>{
+ const journal=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('journal','Sessione del combattimento',['*'],{session:91})});assert.equal(journal.status,200);
+ const state=await combatState();const input={encounterId:state.dmBoard.log.id,version:state.dmBoardVersion,title:'L’imboscata del test',links:[journal.data.id,secretId]};
+ assert.equal((await request('/api/combat/archive',{method:'POST',cookie:dm.cookie,data:{...input,version:input.version-1}})).status,409);
+ assert.deepEqual((await combatState()).dmBoard,state.dmBoard);
+ assert.equal((await request('/api/combat/archive',{method:'POST',cookie:dm.cookie,data:{...input,title:' '}})).status,400);
+ assert.deepEqual((await combatState()).dmBoard,state.dmBoard);
+ const closed=await request('/api/combat/archive',{method:'POST',cookie:dm.cookie,data:input});assert.equal(closed.status,200);combatArchivedId=closed.data.id;
+ let saved=await combatState();const archived=saved.records.find(r=>r.id===combatArchivedId);
+ assert.equal(archived.kind,'combat');assert.deepEqual(archived.audience,['dm']);assert.deepEqual(archived.links,[journal.data.id]);
+ assert.deepEqual(archived.data.events,state.dmBoard.log.events);assert.equal(archived.data.rounds,3);
+ assert.deepEqual(saved.dmBoard,{round:1,turnId:'',combatants:[]});assert.equal(saved.dmBoardVersion,state.dmBoardVersion+1);
+ assert(!(await request('/api/state',{cookie:lyria.cookie})).data.records.some(r=>r.id===combatArchivedId));
+ assert(!JSON.stringify(archived.data).includes('Segreto tattico da non pubblicare'));assert.equal(archived.data.combatants,undefined);
+ const next={...saved.dmBoard,turnId:'next-enemy',combatants:[combatActor('next-enemy','Prossimo incontro')]};
+ assert.equal((await combatSave(saved,next)).status,200);saved=await combatState();
+ const retry=await request('/api/combat/archive',{method:'POST',cookie:dm.cookie,data:input});assert.equal(retry.status,200);assert.equal(retry.data.id,combatArchivedId);
+ const after=await combatState();assert.deepEqual(after.dmBoard,saved.dmBoard);assert.equal(after.dmBoardVersion,saved.dmBoardVersion);
+ assert.equal(after.records.filter(r=>r.id===combatArchivedId).length,1);
+});
+
+await test('A shared combat archive is readable by players, stays immutable in its events and preserves media ACLs',async()=>{
+ let state=await combatState();let archived=state.records.find(r=>r.id===combatArchivedId);
+ const form=new FormData();form.append('file',new File([new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82])],'combat.png',{type:'image/png'}));
+ const uploaded=await request('/api/upload',{method:'POST',cookie:dm.cookie,form});assert.equal(uploaded.status,200);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...archived,body:'Riepilogo da rileggere tra le sessioni',data:{...archived.data,events:[],images:[{id:uploaded.data.id,caption:'Lo scontro'}]}}})).status,200);
+ state=await combatState();archived=state.records.find(r=>r.id===combatArchivedId);assert(archived.data.events.length>0,'editing the summary must not replace recorded events');
+ assert.equal((await request('/api/media/'+uploaded.data.id,{cookie:lyria.cookie})).status,404);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...archived,audience:['*']}})).status,200);
+ const player=(await request('/api/state',{cookie:lyria.cookie})).data;const shared=player.records.find(r=>r.id===combatArchivedId);assert(shared);
+ assert.equal(shared.body,'Riepilogo da rileggere tra le sessioni');assert.deepEqual(shared.data.events,archived.data.events);
+ assert.equal((await request('/api/media/'+uploaded.data.id,{cookie:lyria.cookie})).status,200);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:lyria.cookie,data:{...shared,title:'Riscrittura non consentita'}})).status,403);
+ assert.equal((await request('/api/records',{method:'DELETE',cookie:lyria.cookie,data:{id:shared.id,version:shared.version}})).status,403);
+ const exported=(await request('/api/export',{cookie:lyria.cookie})).data;
+ assert(exported.records.some(r=>r.id===combatArchivedId));assert.equal(exported.dmBoard,undefined);assert(!JSON.stringify(exported).includes('Segreto tattico da non pubblicare'));
+ assert.equal((await request('/api/revisions?id='+combatArchivedId,{cookie:lyria.cookie})).status,403,'earlier versions remain private to the author');
+ const history=await request('/api/revisions?id='+combatArchivedId,{cookie:dm.cookie});assert.equal(history.status,200);assert(!JSON.stringify(history.data).includes('Segreto tattico da non pubblicare'));
+ state=await combatState();archived=state.records.find(r=>r.id===combatArchivedId);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...archived,audience:['dm']}})).status,200);
+ assert(!(await request('/api/state',{cookie:lyria.cookie})).data.records.some(r=>r.id===combatArchivedId));
+ assert.equal((await request('/api/media/'+uploaded.data.id,{cookie:lyria.cookie})).status,404);
+});
+
+// Insert before `await closeDatabase();` in tests/campaign-api.test.mjs.
+// These tests use the existing DB, env, request, dm/lyria fixtures and helpers.
+// The wrapper carries fault injection into the real transaction callback: a
+// throw after the first successful write must roll back in both PostgreSQL and SQLite.
+function faultDatabase(database,matches,counter){
+ const statement=(raw,sql)=>new Proxy(raw,{get(target,key){
+  if(key==='bind')return (...values)=>statement(target.bind(...values),sql);
+  if(['run','first','all'].includes(key))return async(...args)=>{if(matches(sql)){counter.hits++;throw new Error('Injected storage failure for rollback verification');}return target[key](...args);};
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+ return new Proxy(database,{get(target,key){
+  if(key==='prepare')return sql=>statement(target.prepare(sql),sql);
+  if(key==='transaction')return work=>target.transaction(tx=>work(faultDatabase(tx,matches,counter)));
+  const value=Reflect.get(target,key);return typeof value==='function'?value.bind(target):value;
+ }});
+}
+async function faultyRequest(database,path,{method='POST',data,cookie=dm.cookie}={}){
+ const response=await handleCampaign(new Request(base+path,{method,headers:{Origin:base,Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify(data)}),{...env,DB:database});
+ return {status:response.status,data:await response.json()};
+}
+
+await test('Le stesure sono riservate all’autore e oscurano riferimenti non più accessibili',async()=>{
+ const target=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('note','Fonte temporaneamente condivisa',['lyria'])});assert.equal(target.status,200);
+ const label='ETICHETTA PRIVATA DELLA REVISIONE';
+ const created=await request('/api/records',{method:'POST',cookie:lyria.cookie,data:{...record('note','Appunto pubblico con storia',['*']),body:'Dettaglio [['+target.data.id+'|'+label+']].'}});assert.equal(created.status,200);
+ const before=(await request('/api/state',{cookie:lyria.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:lyria.cookie,data:{...before,title:'Appunto pubblico aggiornato'}})).status,200);
+ const denied=await request('/api/revisions?id='+created.data.id,{cookie:dm.cookie});assert.equal(denied.status,403);assert(!JSON.stringify(denied.data).includes(label));
+ assert((await request('/api/state',{cookie:dm.cookie})).data.records.some(r=>r.id===created.data.id),'la voce corrente rimane condivisa');
+ const visibleHistory=await request('/api/revisions?id='+created.data.id,{cookie:lyria.cookie});assert.equal(visibleHistory.status,200);assert(visibleHistory.data.revisions.some(r=>r.body.includes(label)));
+ const reference=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===target.data.id);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...reference,audience:['dm']}})).status,200);
+ const redacted=await request('/api/revisions?id='+created.data.id,{cookie:lyria.cookie});assert.equal(redacted.status,200);assert.equal(redacted.data.revisions.length,1);assert(!JSON.stringify(redacted.data).includes(label),'revocare l’accesso alla fonte oscura anche la sua etichetta nello storico');
+ assert(redacted.data.revisions[0].body.includes('[['+target.data.id+']]'));
+});
+
+await test('Una mappa non si elimina finché contiene luoghi o mappe figlie',async()=>{
+ const parent=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('map','Mappa protetta dalla cancellazione',['*'],{x:.2,y:.3})});assert.equal(parent.status,200);
+ const pin=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('pin','Luogo figlio da conservare',['*'],{map:parent.data.id,x:.4,y:.5})});assert.equal(pin.status,200);
+ const nested=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('map','Mappa figlia da conservare',['dm'],{parent:parent.data.id,x:.6,y:.7})});assert.equal(nested.status,200);
+ const before=await DB.prepare('SELECT * FROM records WHERE id = ?').bind(parent.data.id).first();
+ const denied=await request('/api/records',{method:'DELETE',cookie:dm.cookie,data:{id:parent.data.id,version:1}});assert.equal(denied.status,400);
+ assert.deepEqual(await DB.prepare('SELECT * FROM records WHERE id = ?').bind(parent.data.id).first(),before);
+ assert.equal(JSON.parse((await DB.prepare('SELECT data FROM records WHERE id = ?').bind(pin.data.id).first()).data).map,parent.data.id);
+ assert.equal((await request('/api/records',{method:'DELETE',cookie:dm.cookie,data:{id:pin.data.id,version:1}})).status,200);
+ assert.equal((await request('/api/records',{method:'DELETE',cookie:dm.cookie,data:{id:parent.data.id,version:1}})).status,400,'anche una sola mappa figlia impedisce la cancellazione');
+ assert.equal((await request('/api/records',{method:'DELETE',cookie:dm.cookie,data:{id:nested.data.id,version:1}})).status,200);
+ assert.equal((await request('/api/records',{method:'DELETE',cookie:dm.cookie,data:{id:parent.data.id,version:1}})).status,200,'dopo aver rimosso esplicitamente i contenuti la mappa vuota si può eliminare');
+});
+
+await test('Se il salvataggio della revisione fallisce, voce, versione e storico tornano identici',async()=>{
+ const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('note','Prima stesura atomica',['dm'])});assert.equal(created.status,200);
+ let entry=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...entry,title:'Seconda stesura atomica'}})).status,200);
+ entry=(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===created.data.id);
+ const before=await DB.prepare('SELECT * FROM records WHERE id = ?').bind(entry.id).first();
+ const revisionsBefore=(await DB.prepare('SELECT * FROM revisions WHERE record_id = ? ORDER BY id').bind(entry.id).all()).results;
+ const counter={hits:0};const injected=faultDatabase(DB,sql=>/^INSERT INTO revisions\b/.test(sql),counter);
+ const failed=await faultyRequest(injected,'/api/records',{method:'PUT',data:{...entry,title:'Questa modifica deve essere annullata',body:'Contenuto che non deve rimanere.'}});
+ assert.equal(failed.status,503);assert.equal(counter.hits,1,'l’errore deve avvenire dentro storeRevision, dopo l’UPDATE');
+ assert.deepEqual(await DB.prepare('SELECT * FROM records WHERE id = ?').bind(entry.id).first(),before);
+ assert.deepEqual((await DB.prepare('SELECT * FROM revisions WHERE record_id = ? ORDER BY id').bind(entry.id).all()).results,revisionsBefore);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...entry,title:'Salvataggio ripetuto con successo'}})).status,200,'la versione originale resta utilizzabile dopo il rollback');
+});
+
+await test('Se l’archivio non viene scritto, il combattimento attivo e il suo registro restano integri',async()=>{
+ let state=(await request('/api/state',{cookie:dm.cookie})).data;
+ const actors=[{id:'rollback-hero',name:'Eroe del rollback',initiative:15,ac:15,hp:18,maxHp:18,conditions:'',notes:'Nota del DM'},{id:'rollback-enemy',name:'Lupo del rollback',initiative:12,ac:13,hp:9,maxHp:9,conditions:'',notes:''}];
+ assert.equal((await request('/api/dm-board',{method:'PUT',cookie:dm.cookie,data:{version:state.dmBoardVersion,data:{...state.dmBoard,round:1,turnId:'rollback-hero',combatants:actors}}})).status,200);
+ state=(await request('/api/state',{cookie:dm.cookie})).data;assert(state.dmBoard.log.events.length>0);
+ const encounterId=state.dmBoard.log.id;const before=await DB.prepare('SELECT * FROM settings WHERE id = ?').bind('dm-board').first();
+ const input={encounterId,version:state.dmBoardVersion,title:'Archivio con errore simulato',links:[]};
+ const counter={hits:0};const injected=faultDatabase(DB,sql=>/^INSERT INTO records\b/.test(sql),counter);
+ const failed=await faultyRequest(injected,'/api/combat/archive',{data:input});assert.equal(failed.status,503);assert.equal(counter.hits,1,'il guasto deve avvenire dopo il reset versionato del tracker');
+ assert.deepEqual(await DB.prepare('SELECT * FROM settings WHERE id = ?').bind('dm-board').first(),before,'il reset del tracker deve essere annullato insieme all’INSERT fallito');
+ assert.equal(await DB.prepare('SELECT * FROM records WHERE id = ?').bind(encounterId).first(),null);
+ const retried=await request('/api/combat/archive',{method:'POST',cookie:dm.cookie,data:input});assert.equal(retried.status,200);assert.equal(retried.data.id,encounterId);
+ const archived=await DB.prepare('SELECT * FROM records WHERE id = ?').bind(encounterId).first();assert.deepEqual(JSON.parse(archived.data).events,state.dmBoard.log.events);
+ assert.equal((await DB.prepare('SELECT count(*) n FROM records WHERE id = ?').bind(encounterId).first()).n,1);
+});
+
+const flowNode=(id,values={})=>({id,title:'Scena '+id,notes:'Preparazione riservata al DM',kind:'scene',x:80,y:120,links:[],...values});
+const sessionFlow=(values={})=>({schema:1,nodes:[flowNode('ingresso'),flowNode('scelta',{title:'Fidarsi dell’oste?',kind:'decision',x:440}),flowNode('esito',{title:'Il rifugio',kind:'outcome',x:800})],edges:[{id:'arrivo',from:'ingresso',to:'scelta',condition:'Se entrano nella locanda'},{id:'fiducia',from:'scelta',to:'esito',condition:'Se accettano l’offerta dell’oste'}],...values});
+const readFlow=async id=>(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===id);
+let prepFlowId,prepFlowImage;
+
+await test('I flussi di sessione e le loro immagini restano privati anche con visibilità universale',async()=>{
+ const form=new FormData();form.append('file',new File([new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82])],'preparazione.png',{type:'image/png'}));
+ const uploaded=await request('/api/upload',{method:'POST',cookie:dm.cookie,form});assert.equal(uploaded.status,200);prepFlowImage=uploaded.data.id;
+ const journal=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('journal','Sessione collegata al flusso',['*'],{session:92})});assert.equal(journal.status,200);
+ const flow=sessionFlow();flow.nodes[0].links=[journal.data.id,journal.data.id,secretId,'00000000-0000-0000-0000-000000000000'];flow.nodes[1].links=[noteId];
+ const input={...record('secret','Piano riservato della locanda',['*'],{section:'session',prepFlow:flow,images:[{id:prepFlowImage,caption:'Appunti sulla diramazione segreta'}]}),links:[noteId]};
+ assert.equal((await request('/api/records',{method:'POST',cookie:lyria.cookie,data:input})).status,403);
+ const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:input});assert.equal(created.status,200);prepFlowId=created.data.id;
+ const saved=await readFlow(prepFlowId);assert.deepEqual(saved.audience,['dm']);assert.equal(saved.data.prepFlow.schema,1);
+ assert.deepEqual(saved.data.prepFlow.nodes[0].links,[journal.data.id],'i collegamenti dei nodi escludono voci inesistenti o inaccessibili al DM');
+ assert.deepEqual(saved.data.prepFlow.nodes[1].links,[noteId]);assert.deepEqual([...saved.links].sort(),[journal.data.id,noteId].sort(),'le pagine dei nodi entrano anche nei collegamenti della campagna');
+ assert.deepEqual(saved.data.prepFlow.edges,flow.edges);
+ const player=(await request('/api/state',{cookie:lyria.cookie})).data;assert(!player.records.some(r=>r.id===prepFlowId));assert(!JSON.stringify(player).includes(input.title));
+ assert.equal((await request('/api/records',{method:'PUT',cookie:lyria.cookie,data:{...saved,title:'Tentativo del giocatore'}})).status,403);
+ assert.equal((await request('/api/records',{method:'DELETE',cookie:lyria.cookie,data:{id:saved.id,version:saved.version}})).status,403);
+ assert.equal((await request('/api/revisions?id='+prepFlowId,{cookie:lyria.cookie})).status,404);
+ assert.equal((await request('/api/media/'+prepFlowImage,{cookie:dm.cookie})).status,200);assert.equal((await request('/api/media/'+prepFlowImage,{cookie:lyria.cookie})).status,404);
+ const exported=(await request('/api/export',{cookie:lyria.cookie})).data;assert(!exported.records.some(r=>r.id===prepFlowId));assert(!exported.uploads.some(u=>u.id===prepFlowImage));assert(!JSON.stringify(exported).includes(input.title));
+});
+
+await test('I flussi conservano modifiche, stesure e backup senza sovrascrivere modifiche concorrenti',async()=>{
+ const before=await readFlow(prepFlowId);const next=structuredClone(before.data.prepFlow);
+ next.nodes[1].notes='Se chiedono dei corvi, l’oste mostra la porta sul retro.';next.nodes[1].x=620;next.nodes[1].y=360;next.edges[1].condition='Se chiedono aiuto dopo aver parlato dei corvi';
+ const submitted=structuredClone(next);submitted.nodes[1].links.push(prepFlowId);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,data:{...before.data,prepFlow:submitted}}})).status,200);
+ const saved=await readFlow(prepFlowId);assert.equal(saved.version,before.version+1);assert.deepEqual(saved.data.prepFlow,next);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,title:'Modifica da una scheda obsoleta'}})).status,409);
+ assert.deepEqual(await readFlow(prepFlowId),saved,'il conflitto conserva anche posizioni e condizioni dell’ultima modifica');
+ const history=await request('/api/revisions?id='+prepFlowId,{cookie:dm.cookie});assert.equal(history.status,200);assert.deepEqual(history.data.revisions[0].data.prepFlow,before.data.prepFlow);
+ const backup=(await request('/api/export',{cookie:dm.cookie})).data;const exported=backup.records.find(r=>r.id===prepFlowId);assert.deepEqual(exported.data.prepFlow,next);assert(backup.uploads.some(u=>u.id===prepFlowImage));
+ const restored=await request('/api/records',{method:'POST',cookie:dm.cookie,data:{...exported,id:crypto.randomUUID(),version:0,title:'Copia recuperata dal backup'}});assert.equal(restored.status,200);assert.notEqual(restored.data.id,prepFlowId);
+ const copy=await readFlow(restored.data.id);assert.deepEqual(copy.data.prepFlow,next);assert.deepEqual(copy.links,saved.links);assert.deepEqual(copy.audience,['dm']);
+});
+
+await test('Un editor precedente può modificare il testo senza cancellare il flusso salvato',async()=>{
+ const before=await readFlow(prepFlowId);const oldClientData={...before.data};delete oldClientData.prepFlow;
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,title:'Preparazione rivista della locanda',body:'Descrizione aggiornata da un editor precedente.',links:[],data:oldClientData}})).status,200);
+ const after=await readFlow(prepFlowId);assert.equal(after.title,'Preparazione rivista della locanda');assert.equal(after.body,'Descrizione aggiornata da un editor precedente.');assert.deepEqual(after.data.prepFlow,before.data.prepFlow);
+ assert.deepEqual([...after.links].sort(),[...new Set(before.data.prepFlow.nodes.flatMap(n=>n.links))].sort(),'i collegamenti delle scene sopravvivono all’editor senza supporto ai flussi');
+ const revisions=(await request('/api/revisions?id='+prepFlowId,{cookie:dm.cookie})).data.revisions;assert.deepEqual(revisions[0].data.prepFlow,before.data.prepFlow);
+});
+
+await test('Flussi malformati o troppo grandi non modificano voce, versione o stesure precedenti',async()=>{
+ const before=await readFlow(prepFlowId);const stored=await DB.prepare('SELECT * FROM records WHERE id = ?').bind(prepFlowId).first();
+ const revisions=(await DB.prepare('SELECT * FROM revisions WHERE record_id = ? ORDER BY id').bind(prepFlowId).all()).results;
+ const invalid=[
+  ['valore nullo',null],['array al posto del flusso',[]],['schema sconosciuto',sessionFlow({schema:2})],
+  ['nodi mancanti',{schema:1,edges:[]}],['collegamenti mancanti',{schema:1,nodes:[]}],
+  ['nodo nullo',sessionFlow({nodes:[null],edges:[]})],
+  ['identificativo vuoto',sessionFlow({nodes:[flowNode('')],edges:[]})],
+  ['titolo vuoto',sessionFlow({nodes:[flowNode('a',{title:' '})],edges:[]})],
+  ['nodi duplicati',sessionFlow({nodes:[flowNode('doppio'),flowNode('doppio')] ,edges:[]})],
+  ['collegamenti duplicati',sessionFlow({edges:[{id:'doppio',from:'ingresso',to:'scelta',condition:'Una scelta'},{id:'doppio',from:'scelta',to:'esito',condition:'Un’altra scelta'}]})],
+  ['origine inesistente',sessionFlow({edges:[{id:'rotto',from:'non-esiste',to:'esito',condition:'Se arrivano'}]})],
+  ['destinazione inesistente',sessionFlow({edges:[{id:'rotto',from:'ingresso',to:'non-esiste',condition:'Se partono'}]})],
+  ['tipo di nodo sconosciuto',sessionFlow({nodes:[flowNode('a',{kind:'combat'})],edges:[]})],
+  ['elenco pagine non valido',sessionFlow({nodes:[flowNode('a',{links:'pagina'})],edges:[]})],
+  ['troppe pagine per nodo',sessionFlow({nodes:[flowNode('a',{links:Array.from({length:101},(_,i)=>'pagina-'+i)})],edges:[]})],
+  ['coordinata non numerica',sessionFlow({nodes:[flowNode('a',{x:'80'})],edges:[]})],
+  ['coordinata non finita',sessionFlow({nodes:[flowNode('a',{x:Infinity})],edges:[]})],
+  ['coordinata negativa',sessionFlow({nodes:[flowNode('a',{y:-1})],edges:[]})],
+  ['coordinata fuori tela',sessionFlow({nodes:[flowNode('a',{x:10001})],edges:[]})],
+  ['titolo troppo lungo',sessionFlow({nodes:[flowNode('a',{title:'t'.repeat(161)})],edges:[]})],
+  ['nota troppo lunga',sessionFlow({nodes:[flowNode('a',{notes:'n'.repeat(6001)})],edges:[]})],
+  ['condizione troppo lunga',sessionFlow({edges:[{id:'lunga',from:'ingresso',to:'esito',condition:'c'.repeat(501)}]})],
+  ['condizione vuota',sessionFlow({edges:[{id:'vuota',from:'ingresso',to:'esito',condition:' '}]})],
+  ['troppi nodi',sessionFlow({nodes:Array.from({length:101},(_,i)=>flowNode('n'+i)),edges:[]})],
+  ['troppi collegamenti',sessionFlow({edges:Array.from({length:201},(_,i)=>({id:'e'+i,from:'ingresso',to:'esito',condition:'Se '+i}))})],
+ ];
+ for(const [label,prepFlow] of invalid){
+  const result=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,title:'Questa modifica deve essere rifiutata',data:{...before.data,prepFlow}}});
+  assert.equal(result.status,400,label+': '+JSON.stringify(result.data));
+  assert.deepEqual(await DB.prepare('SELECT * FROM records WHERE id = ?').bind(prepFlowId).first(),stored,label+': voce invariata');
+  assert.deepEqual((await DB.prepare('SELECT * FROM revisions WHERE record_id = ? ORDER BY id').bind(prepFlowId).all()).results,revisions,label+': storico invariato');
+ }
+ const count=(await DB.prepare('SELECT count(*) n FROM records').first()).n;
+ assert.equal((await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Flusso nullo da non creare',['dm'],{prepFlow:null})})).status,400);
+ assert.equal((await DB.prepare('SELECT count(*) n FROM records').first()).n,count,'una creazione non valida non lascia una pagina vuota');
+});
+
+await test('Un flusso accetta dimensioni limite, ritorni a scene precedenti e una tela inizialmente vuota',async()=>{
+ const nodes=Array.from({length:100},(_,i)=>flowNode('n'+i,{x:i*100,y:i*100}));nodes[0]={...nodes[0],title:'t'.repeat(160),notes:'n'.repeat(6000),x:0,y:10000};
+ const edges=Array.from({length:200},(_,i)=>({id:'e'+i,from:'n'+(i%100),to:'n'+((i+1)%100),condition:i===0?'c'.repeat(500):'Se prendono la strada '+i}));
+ const flow=sessionFlow({nodes,edges});const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Piano ai limiti ammessi',['dm'],{section:'session',prepFlow:flow})});assert.equal(created.status,200,JSON.stringify(created.data));
+ assert.deepEqual((await readFlow(created.data.id)).data.prepFlow,flow,'i dati ai limiti ammessi si conservano senza tagli silenziosi');
+ const empty=sessionFlow({nodes:[],edges:[]});const blank=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Sessione ancora da preparare',['dm'],{section:'session',prepFlow:empty})});assert.equal(blank.status,200);assert.deepEqual((await readFlow(blank.data.id)).data.prepFlow,empty);
+});
+
 await closeDatabase();

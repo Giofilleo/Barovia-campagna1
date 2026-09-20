@@ -32,3 +32,10 @@ await test('A journey returning to the same location still has distinct start an
  const prev=event(point(.4,.3));const next=event({...point(.4,.3),path:[],routeVersion:2});
  assert.equal(routeAnchors(next,prev).length,2);
 });
+
+await test('Ruler distances respect square, portrait and landscape map proportions',()=>{
+ assert.equal(routeLength([point(0,0),point(0,1)],1),1);
+ assert.equal(routeLength([point(0,0),point(0,1)],.5),2);
+ assert.equal(routeLength([point(0,0),point(0,1)],2),.5);
+ assert.equal(routeLength([point(0,0),point(1,0)],.5),1);
+});

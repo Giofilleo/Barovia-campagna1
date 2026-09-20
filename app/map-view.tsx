@@ -10,7 +10,7 @@ import {ImageField} from './image-fields';
 import {dateLabel,timeLabel,editable,placed,MAIN_MAP,PIN_LABEL_MODES,type Entry,type State,type Point,type Settings} from '@/lib/campaign';
 import {MAP_RATIO,mapDistance,routeAnchors,sampleRoute,routeLength,pointAt,partialRoute,nearbyPlace} from '@/lib/routes';
 type RouteDraft={id:string;entry:Entry;points:Point[];curve:boolean;selected:number;undo:Point[][];redo:Point[][]};
-type Props={state:State;openEntry:(e:Entry)=>void;createEntry:(kind:any,data?:any)=>void;saveSettings:(changes:any)=>Promise<void>;saveEntry:(e:Entry)=>Promise<void>;history:boolean;setHistory:(v:boolean)=>void;pendingPosition:Entry|null;onPosition:(p:Point)=>void;openClock:()=>void;focusId:string|null;onRouteEditing?:(v:boolean)=>void};
+type Props={state:State;openEntry:(e:Entry)=>void;createEntry:(kind:any,data?:any)=>void;saveSettings:(changes:any)=>Promise<void>;saveEntry:(e:Entry)=>Promise<void>;history:boolean;setHistory:(v:boolean)=>void;pendingPosition:Entry|null;onPosition:(p:Point & {map?:string;parent?:string})=>void;openClock:()=>void;focusId:string|null;onRouteEditing?:(v:boolean)=>void};
 const tokenIcons:Record<string,any>={pin:MapPin,castle:Castle,town:Landmark,trees:Trees,skull:Skull,clue:Search};
 const clamp=(n:number)=>Math.max(0,Math.min(1,n));
 const LOOK_KEY='barovia-segnalini';
@@ -37,7 +37,7 @@ export default function MapView({state,openEntry,createEntry,saveSettings,saveEn
  useEffect(()=>{if(history)setMapId('');if(!history){setPlaying(false);setRoute(null);}setTool('pan');},[history]);
  useEffect(()=>{setMeasure([]);setSelectedId('');setHover('');},[mapId]);
  useEffect(()=>{try{personalLook?localStorage.setItem(LOOK_KEY,JSON.stringify(personalLook)):localStorage.removeItem(LOOK_KEY);}catch{/* spazio esaurito: l'aspetto e un extra */}},[personalLook]);
- useEffect(()=>{if(pendingPosition)setTool('position');else if(tool==='position')setTool('pan');},[pendingPosition]);
+ useEffect(()=>{if(pendingPosition){setMapId(pendingPosition.kind==='map'?pendingPosition.data.parent||'':pendingPosition.kind==='pin'?pendingPosition.data.map||'':'');applyView(1,{x:0,y:0});setTool('position');}else if(tool==='position')setTool('pan');},[pendingPosition]);
  useEffect(()=>{const el=stage.current;if(!el)return;const wheel=(e:WheelEvent)=>{e.preventDefault();const step=e.deltaMode===1?e.deltaY*16:e.deltaMode===2?e.deltaY*400:e.deltaY;zoomTo(Math.max(.25,Math.min(4,Math.exp(-step*(e.ctrlKey?.011:.0022)))),e.clientX,e.clientY);};el.addEventListener('wheel',wheel,{passive:false});return()=>el.removeEventListener('wheel',wheel);},[]);
  useEffect(()=>{onRouteEditing?.(!!route);if(!route)return;const guard=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};window.addEventListener('beforeunload',guard);return()=>{onRouteEditing?.(false);window.removeEventListener('beforeunload',guard);};},[!!route,onRouteEditing]);
  // La mappa principale e quella del sito e non e un contenuto salvato: le altre sono
@@ -81,11 +81,14 @@ export default function MapView({state,openEntry,createEntry,saveSettings,saveEn
  const markerScale=look.scale,labels=look.labels,labelScale=look.labelScale;
  const width=Math.min(size.w,size.h*ratio);const height=width/ratio;
  const view=useRef({zoom,pan,width,height});view.current={zoom,pan,width,height};
+ const pendingFocus=useRef<{id:string;map:string;x:number;y:number}|null>(null);
  function clampPan(p:Point,z:number,w=width,h=height):Point{const el=stage.current;if(!el)return p;const sw=el.clientWidth,sh=el.clientHeight;const mx=Math.max(0,(w*z-sw)/2)+sw*.32,my=Math.max(0,(h*z-sh)/2)+sh*.32;return{x:Math.max(-mx,Math.min(mx,p.x)),y:Math.max(-my,Math.min(my,p.y))};}
  function applyView(z:number,p:Point){const next=clampPan(p,z,view.current.width,view.current.height);view.current={...view.current,zoom:z,pan:next};setZoom(z);setPan(next);}
  function zoomTo(factor:number,clientX?:number,clientY?:number){const el=stage.current;if(!el)return;const r=el.getBoundingClientRect();const v=view.current;const next=Math.max(.65,Math.min(6,v.zoom*factor));if(Math.abs(next-v.zoom)<.0005)return;const fx=(clientX??r.left+r.width/2)-r.left-r.width/2,fy=(clientY??r.top+r.height/2)-r.top-r.height/2;const k=1-next/v.zoom;applyView(next,{x:v.pan.x+(fx-v.pan.x)*k,y:v.pan.y+(fy-v.pan.y)*k});}
- useEffect(()=>{if(!focusId)return;const target=state.records.find(r=>r.id===focusId);if(!target)return;if(target.kind!=='event'&&!placed(target))return;if(target.kind==='event'){setSelectedId(target.id);setMinute(target.data.minutes);setPlaying(false);}else if(target.kind==='map'){openMap(target.id);}
-  else if(target.kind==='pin'){if(history)setHistory(false);setMapId(target.data.map||'');applyView(1.8,{x:(.5-target.data.x)*width*1.8,y:(.5-target.data.y)*height*1.8});setHover(target.id);}},[focusId]);
+ useEffect(()=>{pendingFocus.current=null;if(pendingPosition||!focusId)return;const target=state.records.find(r=>r.id===focusId);if(!target)return;if(target.kind!=='event'&&!placed(target))return;if(target.kind==='event'){setSelectedId(target.id);setMinute(target.data.minutes);setPlaying(false);}else if(target.kind==='map'){openMap(target.id);}
+  else if(target.kind==='pin'){pendingFocus.current={id:target.id,map:target.data.map||'',x:target.data.x??.5,y:target.data.y??.5};if(history)setHistory(false);setMapId(target.data.map||'');}},[focusId]);
+ // La centratura usa le dimensioni della mappa di destinazione, dopo il cambio.
+ useEffect(()=>{const target=pendingFocus.current;if(!target||history||sheet.id!==target.map||width<=0||height<=0)return;applyView(1.8,{x:(.5-target.x)*width*1.8,y:(.5-target.y)*height*1.8});setHover(target.id);pendingFocus.current=null;},[focusId,history,sheet.id,width,height]);
  useEffect(()=>{if(!playing||events.length<2)return;let frame:number;let last=performance.now();let value=cursor;const tick=(now:number)=>{value+=(now-last)/1000*Number(speed)*60;last=now;if(value>=lastMinute){setMinute(lastMinute);setPlaying(false);return;}setMinute(value);frame=requestAnimationFrame(tick);};frame=requestAnimationFrame(tick);return()=>cancelAnimationFrame(frame);},[playing,speed,events]);
  const pts=(arr:Point[])=>arr.map(p=>`${p.x*Math.round(ratio*1000)},${p.y*1000}`).join(' ');
  function position(e:{clientX:number;clientY:number}){const r=canvas.current!.getBoundingClientRect();return{x:clamp((e.clientX-r.left)/r.width),y:clamp((e.clientY-r.top)/r.height)};}
@@ -135,10 +138,10 @@ export default function MapView({state,openEntry,createEntry,saveSettings,saveEn
    void saveEntry({...d.entry,data:{...d.entry.data,...p}}).catch(err=>toast.error((err as Error).message)).finally(()=>setPreview(null));
    return;
   }
-  if(d.kind==='party'){if(d.moved)void saveSettings({party:p}).catch(()=>{}).finally(()=>setPartyPreview(null));else setPartyPreview(null);return;}if(d.kind==='node'||d.kind==='draw'||d.moved)return;if(route&&tool==='nodes'){addNode(p);return;}if(tool==='pin')createEntry('pin',{...p,map:sheet.id});if(tool==='measure')setMeasure(m=>[...m,p]);if(tool==='party'&&state.user.role==='dm'&&!history)void saveSettings({party:p}).catch(()=>{});if(tool==='position')onPosition(p);}
+  if(d.kind==='party'){if(d.moved)void saveSettings({party:p}).catch(()=>{}).finally(()=>setPartyPreview(null));else setPartyPreview(null);return;}if(d.kind==='node'||d.kind==='draw'||d.moved)return;if(route&&tool==='nodes'){addNode(p);return;}if(tool==='pin')createEntry('pin',{...p,map:sheet.id});if(tool==='measure')setMeasure(m=>[...m,p]);if(tool==='party'&&state.user.role==='dm'&&!history)void saveSettings({party:p}).catch(()=>{});if(tool==='position')onPosition({...p,...(pendingPosition?.kind==='map'?{parent:sheet.id}:pendingPosition?.kind==='pin'?{map:sheet.id}:{})});}
  function editRoute(){if(!selected||!previous)return;setPlaying(false);setMinute(selected.data.minutes);setTool('nodes');setRoute({id:selected.id,entry:selected,points:routeAnchors(selected,previous),curve:selected.data.curve!==false&&selected.data.routeVersion===2,selected:0,undo:[],redo:[]});}
  async function persistRoute(){if(!route||!selected)return;setSaving(true);try{await saveEntry({...route.entry,data:{...route.entry.data,path:route.points.slice(1,-1),routeVersion:2,curve:route.curve}});setRoute(null);setTool('pan');}catch(e){toast.error((e as Error).message);}finally{setSaving(false);}}
- const measured=routeLength(measure);const miles=measured*sheet.widthMiles;const travel=miles/state.settings.speed*Number(terrain)*60;
+ const measured=routeLength(measure,sheet.ratio);const miles=measured*sheet.widthMiles;const travel=miles/state.settings.speed*Number(terrain)*60;
  return <div className="map-workspace"><div className="map-header">
  <div className="map-header-title"><div className="eyebrow">{history?'CRONOLOGIA DELLA CAMPAGNA':sheet.id?'MAPPA COLLEGATA':'MAPPA DELLA CAMPAGNA'}</div><h1>{history?'Storia':sheet.title}</h1></div>
  <Tabs value={history?'history':'map'} onValueChange={v=>{if(!route)setHistory(v==='history');}}><TabsList className="atlas-tabs"><TabsTrigger disabled={!!route} value="map"><MapPin size={15}/>Mappa</TabsTrigger><TabsTrigger value="history"><Clock3 size={15}/>Storia</TabsTrigger></TabsList></Tabs>

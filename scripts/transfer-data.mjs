@@ -1,5 +1,5 @@
 import {createHash,randomBytes,pbkdf2Sync} from 'node:crypto';
-const kinds=new Set(['pin','note','character','journal','secret','treasure','faction','event','folder']);
+const kinds=new Set(['pin','note','character','journal','secret','treasure','faction','event','folder','map','table','combat']);
 const check=(ok,message)=>{if(!ok)throw new Error(message);};
 export function prepareTransfer(backups,seeds){
  check(backups.length>0,'Indica almeno un file di esportazione.');
@@ -33,7 +33,7 @@ export function prepareTransfer(backups,seeds){
  check([...referenced].every(id=>uploads.has(id)),'Mancano immagini referenziate: aggiungi le esportazioni degli altri utenti.');
  const raw=campaign.supplies||{};
  const supplies={rations:raw.rations??0,partySize:raw.partySize??6,foodPerPerson:raw.foodPerPerson??1,targetDays:raw.targetDays??7,history:(raw.history||[]).map(m=>({id:m.id,at:m.at,by:m.by,note:m.note,rations:m.rations,before:{rations:m.before.rations},reversed:m.reversed}))};
- return {accounts,records:pages,uploads:Array.from(uploads.values()),settings:campaign.settings,supplies,dmBoard:campaign.dmBoard||{round:1,turnId:'',combatants:[]},missingExports:incomplete};
+ return {accounts,records:pages,uploads:Array.from(uploads.values()),settings:campaign.settings,supplies,dmBoard:campaign.dmBoard||{round:1,turnId:'',combatants:[]},bestiary:campaign.bestiary||{creatures:[]},missingExports:incomplete};
 }
 export async function writeTransfer(sql,data){
  await sql.begin(async tx=>{
@@ -44,6 +44,6 @@ export async function writeTransfer(sql,data){
   for(const u of data.accounts)await tx.unsafe('INSERT INTO barovia.users (id,name,role,hash,salt,active,changed) VALUES ($1,$2,$3,$4,$5,$6,0)',[u.id,u.name,u.role,u.hash,u.salt,u.active]);
   for(const r of data.records)await tx.unsafe('INSERT INTO barovia.records (id,kind,title,body,owner,audience,folder,data,links,version,updated,editor) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)',[r.id,r.kind,r.title,r.body,r.owner,JSON.stringify(r.audience),r.folder||'',JSON.stringify(r.data),JSON.stringify(r.links),r.version,r.updated,r.editor||r.owner]);
   for(const i of data.uploads)await tx.unsafe('INSERT INTO barovia.uploads (id,owner,mime,created) VALUES ($1,$2,$3,$4)',[i.id,i.owner,i.mime,i.created]);
-  for(const [id,value] of [['campaign',data.settings],['supplies',data.supplies],['dm-board',data.dmBoard],['initialized',true],['transfer-imported',{at:new Date().toISOString()}]])await tx.unsafe('INSERT INTO barovia.settings (id,value,version) VALUES ($1,$2,1)',[id,JSON.stringify(value)]);
+  for(const [id,value] of [['campaign',data.settings],['supplies',data.supplies],['dm-board',data.dmBoard],['bestiary',data.bestiary||{creatures:[]}],['initialized',true],['transfer-imported',{at:new Date().toISOString()}]])await tx.unsafe('INSERT INTO barovia.settings (id,value,version) VALUES ($1,$2,1)',[id,JSON.stringify(value)]);
  });
 }
