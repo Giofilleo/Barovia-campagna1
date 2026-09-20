@@ -29,11 +29,11 @@ Se compare “port 5173 is already in use”, chiudi l’altra demo già in esec
 
 L’apertura del sito porta alle Novità. Riassunti e collegamenti sono più leggibili, le pagine narrative hanno più spazio e le sezioni rimangono quelle della campagna: diario, storia, glossario, mappe, appunti e collegamenti. Il diario di una sessione raccoglie anche i combattimenti nella sua finestra temporale; puoi collegarli esplicitamente a sessioni, eventi, luoghi e personaggi.
 
-Non sono state aggiunte altre nuove funzioni di gioco in attesa della tua approvazione. Il Combat Log è la funzione richiesta direttamente; gli altri interventi rifiniscono ciò che già c’era.
+Le nuove funzioni richieste sono il Combat Log e i flussi di preparazione delle sessioni. Gli altri interventi rifiniscono gli strumenti esistenti.
 
 ### Tracker e Combat Log
 
-Nello **Schermo DM → Incontri**, quando modifichi punti ferita o condizioni si apre la registrazione dell’azione. Puoi indicare:
+Nello **Schermo DM → Iniziativa e incontri**, quando modifichi punti ferita o condizioni si apre la registrazione dell’azione. Puoi indicare:
 
 - chi agisce: uno dei combattenti, l’ambiente o un’altra fonte con nome;
 - tipo e nome dell’azione, attacco o magia, esito, tiro e tipo di danno;
@@ -44,13 +44,27 @@ Il registro conserva round, turno, fonte, bersagli ed effetti. Registra sia il d
 
 Il DM deve registrare le azioni: il sito non può ricostruire ciò che accade al tavolo senza essere inserito. Un incontro già aperto in V4 viene mantenuto, ma le azioni antecedenti all’aggiornamento non sono ricostruibili.
 
-Con **Concludi e archivia** dai un titolo e scegli i collegamenti. Il sito crea una pagina **privata del DM** nella sezione **Combat Log** e libera il tracker solo se l’archiviazione riesce. Se qualcosa va storto, combattenti e registro restano disponibili; ripetere l’operazione non crea due copie dello stesso incontro.
+Con **Concludi incontro** dai un titolo e scegli i collegamenti. Il sito crea una pagina **privata del DM** nella sezione **Combat Log** e libera il tracker solo se l’archiviazione riesce. Se qualcosa va storto, combattenti e registro restano disponibili; ripetere l’operazione non crea due copie dello stesso incontro.
 
 Apri la pagina archiviata e premi **Modifica** per aggiungere il racconto, le immagini con didascalie, le etichette, la data di campagna e altri collegamenti. Nello stesso editor scegli i giocatori che possono leggerla, oppure tutti. I giocatori la consultano nella finestra dei dettagli come le altre voci del sito.
 
 Le note tattiche dei combattenti, la CA e i loro totali di PF non vengono copiate nella pagina pubblicabile. **Nomi, descrizioni delle azioni ed effetti registrati saranno invece leggibili dai destinatari scelti**: controllali prima di condividere. Lo storico delle azioni è conservato senza modifiche; puoi correggere o spiegare eventuali errori nel testo del resoconto.
 
 Per evitare salvataggi troppo pesanti, un registro ha un limite di 2.000 eventi e un limite di dimensione. Se li raggiungi, il sito blocca la nuova azione con un messaggio e chiede di archiviare quella parte: non taglia gli eventi già registrati. Dopo l’archiviazione prepara i combattenti per la parte successiva.
+
+### Flussi di preparazione delle sessioni
+
+Apri **Schermo DM → Flussi di sessione → Nuovo flusso**. Dai un titolo alla sessione e scegli una prima diramazione già impostata oppure un foglio con una sola scena.
+
+- Aggiungi **Scene, Scelte, Note ed Esiti**. Seleziona una scheda per scriverne titolo e note, fino a 6.000 caratteri, e collegare le pagine originali della campagna: luoghi, personaggi, diario, appunti e Combat Log.
+- Sposta le schede dalla maniglia, oppure usa i tasti freccia sulla maniglia. I comandi di zoom e “Mostra tutto il flusso” aiutano a orientarti; la vista **Scaletta** permette di leggere e modificare anche dal telefono.
+- Premi **Collega / Crea diramazione** su una scheda. Scrivi la condizione **Se…** e scegli la destinazione **Allora…**. Puoi creare più possibilità e percorsi che ritornano a una scena precedente. Per un passaggio incondizionato scrivi “Sempre”.
+- Seleziona una freccia per cambiarne condizione o destinazione. Rimuovere una scheda rimuove anche le sue frecce, senza eliminare le pagine della campagna richiamate.
+- Premi **Salva flusso** per conservarlo nella campagna. Le modifiche non salvate hanno una bozza locale separata per account, recuperabile esplicitamente. Se il piano è cambiato su un altro dispositivo puoi conservare la bozza come copia e confrontarla con l’originale.
+
+I flussi sono **sempre riservati al DM**, compresi testi, collegamenti, revisioni ed esportazioni. I collegamenti alle pagine sono navigabili in entrambe le direzioni per il DM; non rivelano il piano ai giocatori. Un collegamento rimosso da una singola scheda può restare fra i collegamenti generali della pagina, gestibili dal normale editor.
+
+Ogni flusso contiene fino a **100 schede e 200 frecce**. Non esegue automaticamente gli eventi della storia: serve a preparare possibilità. Dopo la sessione, registra nel diario ciò che è realmente accaduto. I flussi salvati rientrano nelle copie di sicurezza esistenti e non richiedono nuove tabelle.
 
 ### Rifiniture e protezione dei contenuti
 
@@ -60,12 +74,15 @@ Per evitare salvataggi troppo pesanti, un registro ha un limite di 2.000 eventi 
 - Le mappe che contengono altri luoghi o mappe non possono essere eliminate finché non li hai spostati o rimossi esplicitamente.
 - Esportazione e trasferimento mantengono anche mappe, tabelle, Combat Log e bestiario. I vecchi backup restano riconosciuti.
 - Righello corretto per le proporzioni delle mappe secondarie e apertura del luogo sulla sua mappa effettiva.
+- Nuova presentazione delle Novità con l’ultima sessione, l’ultimo scontro e un riepilogo leggibile degli aggiornamenti. Archivio dei combattimenti con copertine, protagonisti, ricerca, etichette e filtri di condivisione.
+- Incontri con schede dei combattenti, ordine di iniziativa, anteprima degli effetti e selezione dei bersagli. Lettore dei Combat Log diviso per round, con riepilogo, ricerca, filtro per fonte e caricamento progressivo.
 - Grafica con toni borgogna e pergamena, spaziatura e tipografia più leggibili, finestre narrative più ampie, controlli adatti al tocco e rispetto della preferenza di movimento ridotto.
 - Caricamento delle sezioni pesanti solo quando servono, immagini differite e meno ricalcoli del grafo. L’archivio si aggiorna ogni minuto e quando torni alla finestra; lo schermo DM conserva l’intervallo di 15 secondi. Il controllo periodico si ferma nelle schede nascoste.
 
 ## Piccolo percorso di prova
 
-Nella demo locale:
+Nella demo locale trovi già un incontro archiviato con copertina, tre azioni e una prima mappa di preparazione privata del DM. Il tracker ha anche due combattenti pronti per le prove.
+
 
 1. Apri diario, glossario, storia e mappa; segui un collegamento dal testo e poi prova il grafo e una ricerca.
 2. Nel tracker, fai infliggere a Lyria 5 danni al Lupo, indicando “Spada lunga”, “Colpito” e “tagliente”. Controlla che i PF del Lupo passino da 11 a 6 e che fonte ed effetto compaiano nel registro.
@@ -73,11 +90,12 @@ Nella demo locale:
 4. Passa il turno e archivia l’incontro collegandolo al diario di prova. Completa il testo, aggiungi un’immagine e condividi con Lyria.
 5. Esci e rientra come Lyria: il registro condiviso deve essere leggibile e non modificabile. Esci, torna DM e restringi la visibilità: Lyria non deve più vederlo dopo l’aggiornamento.
 6. Scrivi una bozza, chiudi l’editor e riaprilo. Prova anche due schede del browser: una modifica concorrente deve segnalare il conflitto e conservare il testo da recuperare.
-7. Controlla la presentazione sul tuo telefono: menu, editor, immagini, registro e scorrimento delle finestre.
+7. Apri **Flussi di sessione**, crea un piano, aggiungi una nota collegata al diario e una freccia condizionale. Salva, cambia scheda e riapri il piano. Prova anche una modifica non salvata: al ritorno deve comparire “Recupera bozza”.
+8. Controlla la presentazione sul tuo telefono: menu, editor, immagini, registro, scaletta dei flussi e scorrimento delle finestre.
 
 ## Supabase: nessuna modifica richiesta per aggiornare V4
 
-**Se il tuo sito V4 funziona già, questo aggiornamento non richiede nuove tabelle, colonne o istruzioni SQL.** I registri usano le strutture già esistenti. Non rieseguire gli script di inizializzazione e non usare l’importazione dei backup sul database online per installare questa versione.
+**Se il tuo sito V4 funziona già, questo aggiornamento non richiede nuove tabelle, colonne o istruzioni SQL.** Registri e flussi usano le strutture già esistenti. Non rieseguire gli script di inizializzazione e non usare l’importazione dei backup sul database online per installare questa versione.
 
 Il database e lo storage online non sono stati aperti o modificati durante lo sviluppo. Le prove automatiche usano database temporanei; la verifica con il tuo Supabase reale rimane da fare nell’ambiente che sceglierai per il collaudo.
 
@@ -99,12 +117,12 @@ Dopo il collaudo e le esportazioni, l’aggiornamento può essere integrato in `
 
 Dopo la distribuzione fai ricaricare completamente la pagina a tutti, soprattutto al DM. Una vecchia scheda aperta potrebbe non conoscere il nuovo registro: il server V5 respinge aggiornamenti del tracker provenienti da quella vecchia versione quando rischiano di perdere lo storico.
 
-**Dopo aver iniziato a registrare combattimenti in V5, non tornare semplicemente al codice V4.** V4 non conosce il nuovo tipo di pagina né lo storico del tracker: una vecchia versione potrebbe non mostrarli correttamente o sovrascriverli. In caso di problema, conserva V5 e i dati, ed esegui una correzione compatibile. Non eliminare i registri per risolvere un problema di visualizzazione.
+**Dopo aver iniziato a registrare combattimenti o creare flussi in V5, non tornare semplicemente al codice V4.** V4 non conosce i nuovi dati dei flussi, il tipo di pagina dei combattimenti o lo storico del tracker: una vecchia versione potrebbe non mostrarli correttamente o sovrascriverli. In caso di problema, conserva V5 e i dati, ed esegui una correzione compatibile. Non eliminare i registri per risolvere un problema di visualizzazione.
 
 ## Verifiche e limiti della consegna
 
-Risultati: compilazione TypeScript e build Vite riuscite; **71 test automatici superati** (47 test delle API su PostgreSQL temporaneo con PGlite e 24 test su combattimenti, percorsi, trasferimenti e anteprime). Sono compresi controlli dei permessi, tentativi concorrenti e salvataggi atomici con errori di scrittura simulati.
+Risultati: compilazione TypeScript e build Vite riuscite; **76 test automatici superati** (52 test delle API su PostgreSQL temporaneo con PGlite e 24 test su combattimenti, percorsi, trasferimenti e anteprime). Sono compresi permessi, modifiche concorrenti, vecchi editor, flussi non validi e salvataggi atomici con errori di scrittura simulati. Anche i dati della demo sono verificati da una procedura separata, senza avviare il server.
 
-Rispetto alla build della V4, il JavaScript iniziale scende da 617.531 a 482.153 byte (**−21,9%**); compresso con lo stesso metodo gzip, da 183.233 a 146.373 byte (**−20,1%**). Il codice complessivo cresce leggermente per le nuove funzioni, ma le sezioni non necessarie non vengono scaricate all’apertura. Il CSS passa da 242.124 a 248.073 byte. Queste sono misure dei file prodotti dalla build, non tempi di caricamento misurati su una connessione reale.
+Rispetto alla build della V4, il JavaScript iniziale scende da 617.531 a 484.737 byte (**−21,5%**); compresso con lo stesso metodo gzip, da 183.233 a 147.163 byte (**−19,7%**). Il codice JavaScript complessivo è di 725.008 byte. Il CSS iniziale è di 273.617 byte (48.720 con gzip); il CSS completo è di 351.285 byte. Flussi, strumenti DM e lettore dei combattimenti caricano codice e stili specifici quando vengono aperti. Queste sono misure dei file prodotti, non tempi di caricamento su una connessione reale.
 
-La verifica visiva automatizzata nel browser è rimasta bloccata perché il controllo di sicurezza dell’app non era disponibile. Di conseguenza la rifinitura grafica è implementata ma non certificata con un’ispezione visiva desktop/mobile. Non è stata eseguita una distribuzione reale su Netlify né una prova sul tuo Supabase online. La demo e il percorso qui sopra servono a completare quel collaudo prima di sostituire il sito in produzione.
+La demo locale è stata ispezionata nel browser su desktop e a 390 pixel di larghezza. Sono stati provati creazione, note, rimandi a pagine, diramazioni, salvataggio e riapertura dei flussi, recupero di una bozza, aggiornamento dei PF nel tracker, lettura dei resoconti, filtri e navigazione mobile. La vista giocatore è controllata anche dalle prove automatiche: riceve i resoconti condivisi e non riceve i flussi del DM. La campagna reale e il suo Supabase non sono stati modificati; prima del passaggio definitivo resta il tuo collaudo dei contenuti reali nell’ambiente scelto.

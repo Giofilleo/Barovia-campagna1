@@ -1,4 +1,5 @@
 import {cleanCombatants,recordCombatChange} from './combat';
+import {cleanSessionFlow,flowPageLinks} from './session-flow';
 import { getDb,type Database as D1Database } from '../db';
 import { accountSeed } from './account-seed';
 import { DEFAULTS, DEFAULT_SUPPLIES, DEFAULT_DM_BOARD, DEFAULT_BESTIARY, CHARACTER_TYPES, readSupplies, imageIds, inlineReferences, KINDS, visible, editable, deletable, type Entry, type Member, type Settings } from './campaign';
@@ -176,6 +177,13 @@ export async function handleCampaign(req:Request,env:Bindings):Promise<Response>
   }
  }
  const data=cleanData(kind,incoming);
+ if(kind==='secret'&&(incoming?.prepFlow!==undefined||old?.data.prepFlow!==undefined)){
+  // Older editors know only the surrounding page. Their metadata edits must not erase a plan.
+  try{data.prepFlow=cleanSessionFlow(incoming?.prepFlow===undefined?old?.data.prepFlow:incoming.prepFlow);}
+  catch(error){fail(400,(error as Error).message);}
+  data.prepFlow.nodes=data.prepFlow.nodes.map((node:any)=>({...node,links:node.links.filter((id:string)=>accessible.has(id)&&id!==old?.id)}));
+  for(const linked of flowPageLinks(data.prepFlow))if(!links.includes(linked))links.push(linked);
+ }
  if(kind==='combat'){Object.assign(data,old!.data,{images:data.images,tags:data.tags,minutes:Math.floor(number(incoming?.minutes,0,500000000,old!.data.minutes))});}
  for(const imageId of imageIds(data)){const upload=await db.prepare('SELECT * FROM uploads WHERE id = ?').bind(imageId).first<any>();if(!upload||(upload.owner!==user.id&&!imageIds(old?.data||{}).includes(imageId)))fail(403,'Immagine non disponibile.');}
  const id=old?.id||(typeof b.id==='string'&&/^[0-9a-f-]{36}$/.test(b.id)?b.id:crypto.randomUUID());const updated=Date.now();const values=[title,content,JSON.stringify(audience),folder,JSON.stringify(data),JSON.stringify(links),updated,user.id,kind];

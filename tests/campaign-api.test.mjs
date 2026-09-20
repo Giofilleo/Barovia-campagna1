@@ -596,4 +596,97 @@ await test('Se l’archivio non viene scritto, il combattimento attivo e il suo 
  assert.equal((await DB.prepare('SELECT count(*) n FROM records WHERE id = ?').bind(encounterId).first()).n,1);
 });
 
+const flowNode=(id,values={})=>({id,title:'Scena '+id,notes:'Preparazione riservata al DM',kind:'scene',x:80,y:120,links:[],...values});
+const sessionFlow=(values={})=>({schema:1,nodes:[flowNode('ingresso'),flowNode('scelta',{title:'Fidarsi dell’oste?',kind:'decision',x:440}),flowNode('esito',{title:'Il rifugio',kind:'outcome',x:800})],edges:[{id:'arrivo',from:'ingresso',to:'scelta',condition:'Se entrano nella locanda'},{id:'fiducia',from:'scelta',to:'esito',condition:'Se accettano l’offerta dell’oste'}],...values});
+const readFlow=async id=>(await request('/api/state',{cookie:dm.cookie})).data.records.find(r=>r.id===id);
+let prepFlowId,prepFlowImage;
+
+await test('I flussi di sessione e le loro immagini restano privati anche con visibilità universale',async()=>{
+ const form=new FormData();form.append('file',new File([new Uint8Array([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82])],'preparazione.png',{type:'image/png'}));
+ const uploaded=await request('/api/upload',{method:'POST',cookie:dm.cookie,form});assert.equal(uploaded.status,200);prepFlowImage=uploaded.data.id;
+ const journal=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('journal','Sessione collegata al flusso',['*'],{session:92})});assert.equal(journal.status,200);
+ const flow=sessionFlow();flow.nodes[0].links=[journal.data.id,journal.data.id,secretId,'00000000-0000-0000-0000-000000000000'];flow.nodes[1].links=[noteId];
+ const input={...record('secret','Piano riservato della locanda',['*'],{section:'session',prepFlow:flow,images:[{id:prepFlowImage,caption:'Appunti sulla diramazione segreta'}]}),links:[noteId]};
+ assert.equal((await request('/api/records',{method:'POST',cookie:lyria.cookie,data:input})).status,403);
+ const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:input});assert.equal(created.status,200);prepFlowId=created.data.id;
+ const saved=await readFlow(prepFlowId);assert.deepEqual(saved.audience,['dm']);assert.equal(saved.data.prepFlow.schema,1);
+ assert.deepEqual(saved.data.prepFlow.nodes[0].links,[journal.data.id],'i collegamenti dei nodi escludono voci inesistenti o inaccessibili al DM');
+ assert.deepEqual(saved.data.prepFlow.nodes[1].links,[noteId]);assert.deepEqual([...saved.links].sort(),[journal.data.id,noteId].sort(),'le pagine dei nodi entrano anche nei collegamenti della campagna');
+ assert.deepEqual(saved.data.prepFlow.edges,flow.edges);
+ const player=(await request('/api/state',{cookie:lyria.cookie})).data;assert(!player.records.some(r=>r.id===prepFlowId));assert(!JSON.stringify(player).includes(input.title));
+ assert.equal((await request('/api/records',{method:'PUT',cookie:lyria.cookie,data:{...saved,title:'Tentativo del giocatore'}})).status,403);
+ assert.equal((await request('/api/records',{method:'DELETE',cookie:lyria.cookie,data:{id:saved.id,version:saved.version}})).status,403);
+ assert.equal((await request('/api/revisions?id='+prepFlowId,{cookie:lyria.cookie})).status,404);
+ assert.equal((await request('/api/media/'+prepFlowImage,{cookie:dm.cookie})).status,200);assert.equal((await request('/api/media/'+prepFlowImage,{cookie:lyria.cookie})).status,404);
+ const exported=(await request('/api/export',{cookie:lyria.cookie})).data;assert(!exported.records.some(r=>r.id===prepFlowId));assert(!exported.uploads.some(u=>u.id===prepFlowImage));assert(!JSON.stringify(exported).includes(input.title));
+});
+
+await test('I flussi conservano modifiche, stesure e backup senza sovrascrivere modifiche concorrenti',async()=>{
+ const before=await readFlow(prepFlowId);const next=structuredClone(before.data.prepFlow);
+ next.nodes[1].notes='Se chiedono dei corvi, l’oste mostra la porta sul retro.';next.nodes[1].x=620;next.nodes[1].y=360;next.edges[1].condition='Se chiedono aiuto dopo aver parlato dei corvi';
+ const submitted=structuredClone(next);submitted.nodes[1].links.push(prepFlowId);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,data:{...before.data,prepFlow:submitted}}})).status,200);
+ const saved=await readFlow(prepFlowId);assert.equal(saved.version,before.version+1);assert.deepEqual(saved.data.prepFlow,next);
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,title:'Modifica da una scheda obsoleta'}})).status,409);
+ assert.deepEqual(await readFlow(prepFlowId),saved,'il conflitto conserva anche posizioni e condizioni dell’ultima modifica');
+ const history=await request('/api/revisions?id='+prepFlowId,{cookie:dm.cookie});assert.equal(history.status,200);assert.deepEqual(history.data.revisions[0].data.prepFlow,before.data.prepFlow);
+ const backup=(await request('/api/export',{cookie:dm.cookie})).data;const exported=backup.records.find(r=>r.id===prepFlowId);assert.deepEqual(exported.data.prepFlow,next);assert(backup.uploads.some(u=>u.id===prepFlowImage));
+ const restored=await request('/api/records',{method:'POST',cookie:dm.cookie,data:{...exported,id:crypto.randomUUID(),version:0,title:'Copia recuperata dal backup'}});assert.equal(restored.status,200);assert.notEqual(restored.data.id,prepFlowId);
+ const copy=await readFlow(restored.data.id);assert.deepEqual(copy.data.prepFlow,next);assert.deepEqual(copy.links,saved.links);assert.deepEqual(copy.audience,['dm']);
+});
+
+await test('Un editor precedente può modificare il testo senza cancellare il flusso salvato',async()=>{
+ const before=await readFlow(prepFlowId);const oldClientData={...before.data};delete oldClientData.prepFlow;
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,title:'Preparazione rivista della locanda',body:'Descrizione aggiornata da un editor precedente.',links:[],data:oldClientData}})).status,200);
+ const after=await readFlow(prepFlowId);assert.equal(after.title,'Preparazione rivista della locanda');assert.equal(after.body,'Descrizione aggiornata da un editor precedente.');assert.deepEqual(after.data.prepFlow,before.data.prepFlow);
+ assert.deepEqual([...after.links].sort(),[...new Set(before.data.prepFlow.nodes.flatMap(n=>n.links))].sort(),'i collegamenti delle scene sopravvivono all’editor senza supporto ai flussi');
+ const revisions=(await request('/api/revisions?id='+prepFlowId,{cookie:dm.cookie})).data.revisions;assert.deepEqual(revisions[0].data.prepFlow,before.data.prepFlow);
+});
+
+await test('Flussi malformati o troppo grandi non modificano voce, versione o stesure precedenti',async()=>{
+ const before=await readFlow(prepFlowId);const stored=await DB.prepare('SELECT * FROM records WHERE id = ?').bind(prepFlowId).first();
+ const revisions=(await DB.prepare('SELECT * FROM revisions WHERE record_id = ? ORDER BY id').bind(prepFlowId).all()).results;
+ const invalid=[
+  ['valore nullo',null],['array al posto del flusso',[]],['schema sconosciuto',sessionFlow({schema:2})],
+  ['nodi mancanti',{schema:1,edges:[]}],['collegamenti mancanti',{schema:1,nodes:[]}],
+  ['nodo nullo',sessionFlow({nodes:[null],edges:[]})],
+  ['identificativo vuoto',sessionFlow({nodes:[flowNode('')],edges:[]})],
+  ['titolo vuoto',sessionFlow({nodes:[flowNode('a',{title:' '})],edges:[]})],
+  ['nodi duplicati',sessionFlow({nodes:[flowNode('doppio'),flowNode('doppio')] ,edges:[]})],
+  ['collegamenti duplicati',sessionFlow({edges:[{id:'doppio',from:'ingresso',to:'scelta',condition:'Una scelta'},{id:'doppio',from:'scelta',to:'esito',condition:'Un’altra scelta'}]})],
+  ['origine inesistente',sessionFlow({edges:[{id:'rotto',from:'non-esiste',to:'esito',condition:'Se arrivano'}]})],
+  ['destinazione inesistente',sessionFlow({edges:[{id:'rotto',from:'ingresso',to:'non-esiste',condition:'Se partono'}]})],
+  ['tipo di nodo sconosciuto',sessionFlow({nodes:[flowNode('a',{kind:'combat'})],edges:[]})],
+  ['elenco pagine non valido',sessionFlow({nodes:[flowNode('a',{links:'pagina'})],edges:[]})],
+  ['troppe pagine per nodo',sessionFlow({nodes:[flowNode('a',{links:Array.from({length:101},(_,i)=>'pagina-'+i)})],edges:[]})],
+  ['coordinata non numerica',sessionFlow({nodes:[flowNode('a',{x:'80'})],edges:[]})],
+  ['coordinata non finita',sessionFlow({nodes:[flowNode('a',{x:Infinity})],edges:[]})],
+  ['coordinata negativa',sessionFlow({nodes:[flowNode('a',{y:-1})],edges:[]})],
+  ['coordinata fuori tela',sessionFlow({nodes:[flowNode('a',{x:10001})],edges:[]})],
+  ['titolo troppo lungo',sessionFlow({nodes:[flowNode('a',{title:'t'.repeat(161)})],edges:[]})],
+  ['nota troppo lunga',sessionFlow({nodes:[flowNode('a',{notes:'n'.repeat(6001)})],edges:[]})],
+  ['condizione troppo lunga',sessionFlow({edges:[{id:'lunga',from:'ingresso',to:'esito',condition:'c'.repeat(501)}]})],
+  ['condizione vuota',sessionFlow({edges:[{id:'vuota',from:'ingresso',to:'esito',condition:' '}]})],
+  ['troppi nodi',sessionFlow({nodes:Array.from({length:101},(_,i)=>flowNode('n'+i)),edges:[]})],
+  ['troppi collegamenti',sessionFlow({edges:Array.from({length:201},(_,i)=>({id:'e'+i,from:'ingresso',to:'esito',condition:'Se '+i}))})],
+ ];
+ for(const [label,prepFlow] of invalid){
+  const result=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,title:'Questa modifica deve essere rifiutata',data:{...before.data,prepFlow}}});
+  assert.equal(result.status,400,label+': '+JSON.stringify(result.data));
+  assert.deepEqual(await DB.prepare('SELECT * FROM records WHERE id = ?').bind(prepFlowId).first(),stored,label+': voce invariata');
+  assert.deepEqual((await DB.prepare('SELECT * FROM revisions WHERE record_id = ? ORDER BY id').bind(prepFlowId).all()).results,revisions,label+': storico invariato');
+ }
+ const count=(await DB.prepare('SELECT count(*) n FROM records').first()).n;
+ assert.equal((await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Flusso nullo da non creare',['dm'],{prepFlow:null})})).status,400);
+ assert.equal((await DB.prepare('SELECT count(*) n FROM records').first()).n,count,'una creazione non valida non lascia una pagina vuota');
+});
+
+await test('Un flusso accetta dimensioni limite, ritorni a scene precedenti e una tela inizialmente vuota',async()=>{
+ const nodes=Array.from({length:100},(_,i)=>flowNode('n'+i,{x:i*100,y:i*100}));nodes[0]={...nodes[0],title:'t'.repeat(160),notes:'n'.repeat(6000),x:0,y:10000};
+ const edges=Array.from({length:200},(_,i)=>({id:'e'+i,from:'n'+(i%100),to:'n'+((i+1)%100),condition:i===0?'c'.repeat(500):'Se prendono la strada '+i}));
+ const flow=sessionFlow({nodes,edges});const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Piano ai limiti ammessi',['dm'],{section:'session',prepFlow:flow})});assert.equal(created.status,200,JSON.stringify(created.data));
+ assert.deepEqual((await readFlow(created.data.id)).data.prepFlow,flow,'i dati ai limiti ammessi si conservano senza tagli silenziosi');
+ const empty=sessionFlow({nodes:[],edges:[]});const blank=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Sessione ancora da preparare',['dm'],{section:'session',prepFlow:empty})});assert.equal(blank.status,200);assert.deepEqual((await readFlow(blank.data.id)).data.prepFlow,empty);
+});
+
 await closeDatabase();
