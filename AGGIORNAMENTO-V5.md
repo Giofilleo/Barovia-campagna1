@@ -57,7 +57,7 @@ Per evitare salvataggi troppo pesanti, un registro ha un limite di 2.000 eventi 
 Apri **Schermo DM → Flussi di sessione → Nuovo flusso**. Dai un titolo alla sessione e scegli una prima diramazione già impostata oppure un foglio con una sola scena.
 
 - Aggiungi **Scene, Scelte, Note ed Esiti**. Seleziona una scheda per scriverne titolo e note, fino a 6.000 caratteri, e collegare le pagine originali della campagna: luoghi, personaggi, diario, appunti e Combat Log.
-- Sposta le schede dalla maniglia, oppure usa i tasti freccia sulla maniglia. I comandi di zoom e “Mostra tutto il flusso” aiutano a orientarti; la vista **Scaletta** permette di leggere e modificare anche dal telefono.
+- Trascina lo **sfondo** per spostare la visuale. Trascina una **scheda**, anche dal titolo o dal testo, per cambiarne la posizione; la maniglia resta utilizzabile anche con i tasti freccia. I comandi di zoom mantengono il centro della visuale e **Mostra tutto il flusso** centra l’intero diagramma. La vista **Scaletta** permette di leggere e modificare anche dal telefono. Lo spostamento della visuale non richiede un salvataggio; quello delle schede sì.
 - Premi **Collega / Crea diramazione** su una scheda. Scrivi la condizione **Se…** e scegli la destinazione **Allora…**. Puoi creare più possibilità e percorsi che ritornano a una scena precedente. Per un passaggio incondizionato scrivi “Sempre”.
 - Seleziona una freccia per cambiarne condizione o destinazione. Rimuovere una scheda rimuove anche le sue frecce, senza eliminare le pagine della campagna richiamate.
 - Premi **Salva flusso** per conservarlo nella campagna. Le modifiche non salvate hanno una bozza locale separata per account, recuperabile esplicitamente. Se il piano è cambiato su un altro dispositivo puoi conservare la bozza come copia e confrontarla con l’originale.
@@ -74,6 +74,7 @@ Ogni flusso contiene fino a **100 schede e 200 frecce**. Non esegue automaticame
 - Le mappe che contengono altri luoghi o mappe non possono essere eliminate finché non li hai spostati o rimossi esplicitamente.
 - Esportazione e trasferimento mantengono anche mappe, tabelle, Combat Log e bestiario. I vecchi backup restano riconosciuti.
 - Righello corretto per le proporzioni delle mappe secondarie e apertura del luogo sulla sua mappa effettiva.
+- Testi dell’interfaccia più neutrali in accesso, Novità, Combat Log, incontri e flussi DM, senza riscrivere i contenuti della campagna.
 - Nuova presentazione delle Novità con l’ultima sessione, l’ultimo scontro e un riepilogo leggibile degli aggiornamenti. Archivio dei combattimenti con copertine, protagonisti, ricerca, etichette e filtri di condivisione.
 - Incontri con schede dei combattenti, ordine di iniziativa, anteprima degli effetti e selezione dei bersagli. Lettore dei Combat Log diviso per round, con riepilogo, ricerca, filtro per fonte e caricamento progressivo.
 - Grafica con toni borgogna e pergamena, spaziatura e tipografia più leggibili, finestre narrative più ampie, controlli adatti al tocco e rispetto della preferenza di movimento ridotto.
@@ -123,6 +124,10 @@ Dopo la distribuzione fai ricaricare completamente la pagina a tutti, soprattutt
 
 Risultati: compilazione TypeScript e build Vite riuscite; **76 test automatici superati** (52 test delle API su PostgreSQL temporaneo con PGlite e 24 test su combattimenti, percorsi, trasferimenti e anteprime). Sono compresi permessi, modifiche concorrenti, vecchi editor, flussi non validi e salvataggi atomici con errori di scrittura simulati. Anche i dati della demo sono verificati da una procedura separata, senza avviare il server.
 
-Rispetto alla build della V4, il JavaScript iniziale scende da 617.531 a 484.737 byte (**−21,5%**); compresso con lo stesso metodo gzip, da 183.233 a 147.163 byte (**−19,7%**). Il codice JavaScript complessivo è di 725.008 byte. Il CSS iniziale è di 273.617 byte (48.720 con gzip); il CSS completo è di 351.285 byte. Flussi, strumenti DM e lettore dei combattimenti caricano codice e stili specifici quando vengono aperti. Queste sono misure dei file prodotti, non tempi di caricamento su una connessione reale.
+Rispetto alla build della V4, il JavaScript iniziale scende da 617.531 a 484.685 byte (**−21,5%**); compresso con lo stesso metodo gzip, da 183.233 a 146.543 byte (**−20,0%**). Il codice JavaScript complessivo è di 726.040 byte. Il CSS iniziale è di 273.639 byte (48.376 con gzip); il CSS completo è di 351.769 byte. Flussi, strumenti DM e lettore dei combattimenti caricano codice e stili specifici quando vengono aperti. Queste sono misure dei file prodotti, non tempi di caricamento su una connessione reale.
 
 La demo locale è stata ispezionata nel browser su desktop e a 390 pixel di larghezza. Sono stati provati creazione, note, rimandi a pagine, diramazioni, salvataggio e riapertura dei flussi, recupero di una bozza, aggiornamento dei PF nel tracker, lettura dei resoconti, filtri e navigazione mobile. La vista giocatore è controllata anche dalle prove automatiche: riceve i resoconti condivisi e non riceve i flussi del DM. La campagna reale e il suo Supabase non sono stati modificati; prima del passaggio definitivo resta il tuo collaudo dei contenuti reali nell’ambiente scelto.
+
+### Verifica della navigazione dei flussi
+
+Provati nella demo locale il trascinamento dello sfondo senza modifiche ai dati, lo spostamento dal testo di una scheda a due livelli di zoom, le frecce, il pulsante Collega, il movimento da tastiera e la conservazione della posizione dopo salvataggio e riapertura. Controllati anche il layout a 390 px e l’assenza di scorrimento orizzontale della pagina. Il trascinamento è verificato con il mouse; i gesti su un dispositivo touch fisico restano da provare.
