@@ -2,23 +2,33 @@
 export type FlowNode={id:string;title:string;notes:string;kind:'scene'|'decision'|'note'|'outcome';x:number;y:number;links:string[]};
 export type FlowEdge={id:string;from:string;to:string;condition:string};
 export type SessionFlow={schema:1;nodes:FlowNode[];edges:FlowEdge[]};
-export const MAX_FLOW_NODES=100;
-export const MAX_FLOW_EDGES=200;
+export const MAX_FLOW_NODES=1000;
+export const MAX_FLOW_EDGES=3000;
+// Leave room for the surrounding page within the API's 2.5-million-character request limit.
+export const MAX_FLOW_BYTES=2_000_000;
+const flowEncoder=new TextEncoder();
+
+/** Shared by the editor and API. Count encoded JSON, including escaped text and non-ASCII characters. */
+export function sessionFlowSizeError(flow:SessionFlow):string|null{
+ return flowEncoder.encode(JSON.stringify(flow)).byteLength>MAX_FLOW_BYTES
+  ?'Il flusso supera il limite complessivo di 2 MB. Riduci le note o suddividi la preparazione in più flussi. Il contenuto non viene troncato.'
+  :null;
+}
 
 function text(value:unknown,max:number,label:string,required=false){
  if(typeof value!=='string'||value.length>max||(required&&!value.trim()))throw new Error(`${label}: inserisci ${required?'da 1 a':'al massimo'} ${max.toLocaleString('it-IT')} caratteri.`);
  return value;
 }
 function coordinate(value:unknown){
- if(typeof value!=='number'||!Number.isFinite(value)||value<0||value>10000)throw new Error('La posizione di una scheda non è valida.');
+ if(typeof value!=='number'||!Number.isFinite(value)||!Number.isSafeInteger(Math.round(value)))throw new Error('La posizione di una scheda non è valida.');
  return Math.round(value);
 }
 /** Reject malformed/oversized plans rather than silently trimming away preparation. */
 export function cleanSessionFlow(value:unknown):SessionFlow{
  const raw=value as any;
  if(!raw||raw.schema!==1||!Array.isArray(raw.nodes)||!Array.isArray(raw.edges))throw new Error('Il flusso di sessione non è valido.');
- if(raw.nodes.length>MAX_FLOW_NODES)throw new Error('Un flusso può contenere al massimo 100 schede.');
- if(raw.edges.length>MAX_FLOW_EDGES)throw new Error('Un flusso può contenere al massimo 200 collegamenti condizionali.');
+ if(raw.nodes.length>MAX_FLOW_NODES)throw new Error('Un flusso può contenere al massimo 1.000 schede.');
+ if(raw.edges.length>MAX_FLOW_EDGES)throw new Error('Un flusso può contenere al massimo 3.000 collegamenti condizionali.');
  const ids=new Set<string>();
  const nodes:FlowNode[]=raw.nodes.map((n:any)=>{
   const id=text(n?.id,80,'Identificativo della scheda',true);
@@ -37,7 +47,9 @@ export function cleanSessionFlow(value:unknown):SessionFlow{
   if(!ids.has(from)||!ids.has(to))throw new Error('Un collegamento fa riferimento a una scheda non presente nel flusso.');
   return {id,from,to,condition:text(e.condition,500,'Condizione del collegamento',true)};
  });
- return {schema:1,nodes,edges};
+ const flow:SessionFlow={schema:1,nodes,edges};
+ const sizeError=sessionFlowSizeError(flow);if(sizeError)throw new Error(sizeError);
+ return flow;
 }
 
 export function flowPageLinks(flow:SessionFlow){return Array.from(new Set(flow.nodes.flatMap(n=>n.links)));}
