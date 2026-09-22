@@ -1,10 +1,15 @@
 /** Disposable local campaign. No production credentials, network database or persistent data. */
 import {PGlite} from '@electric-sql/pglite';
 import {build} from 'esbuild';
-import {createServer} from 'vite';
-import {mkdir,readFile,readdir} from 'node:fs/promises';
+import {createServer,preview} from 'vite';
+import {access,mkdir,readFile,readdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import assert from 'node:assert/strict';
+const production=process.argv.includes('--production');
+if(production&&!process.argv.includes('--check')){
+ try{await access(resolve('dist-netlify/index.html'));}
+ catch{throw new Error('Build di produzione mancante: esegui npm run build:netlify prima di avviare npm run preview:demo -- --production.');}
+}
 await mkdir('.sites-runtime/preview',{recursive:true});
 for(const [name,path] of Object.entries({server:'lib/server.ts',postgres:'adapters/postgres.ts',flow:'lib/session-flow.ts'}))await build({entryPoints:[path],bundle:true,platform:'node',format:'esm',outfile:'.sites-runtime/preview/'+name+'.mjs'});
 const {handleCampaign,passwordHash}=await import(resolve('.sites-runtime/preview/server.mjs'));
@@ -85,7 +90,25 @@ if(process.argv.includes('--check')){
  process.exit(0);
 }
 await demoAPI('/api/auth','POST',{action:'logout'});
-const server=await createServer({configFile:resolve('vite.netlify.config.ts'),server:{host:'127.0.0.1',port:5173,strictPort:true},plugins:[{name:'disposable-campaign-api',configureServer(vite){vite.middlewares.use('/api',async(req,res)=>{try{const chunks=[];for await(const chunk of req)chunks.push(chunk);const headers=new Headers();for(const [key,value] of Object.entries(req.headers))if(value)headers.set(key,Array.isArray(value)?value.join(','):value);const bytes=Buffer.concat(chunks);const request=new Request('http://127.0.0.1:5173/api'+req.url,{method:req.method,headers,...(bytes.length?{body:bytes}:{} )});const result=await handleCampaign(request,env);res.statusCode=result.status;result.headers.forEach((value,key)=>res.setHeader(key,value));res.end(Buffer.from(await result.arrayBuffer()));}catch(e){console.error(e);res.statusCode=500;res.end('Preview error');}});}}]});
-await server.listen();server.printUrls();
+const port=production?5174:5173;
+function attachDemoAPI(vite){
+ vite.middlewares.use('/api',async(req,res)=>{
+  try{
+   const chunks=[];for await(const chunk of req)chunks.push(chunk);
+   const headers=new Headers();for(const [key,value] of Object.entries(req.headers))if(value)headers.set(key,Array.isArray(value)?value.join(','):value);
+   const bytes=Buffer.concat(chunks);
+   const request=new Request('http://127.0.0.1:'+port+'/api'+req.url,{method:req.method,headers,...(bytes.length?{body:bytes}:{})});
+   const result=await handleCampaign(request,env);
+   res.statusCode=result.status;result.headers.forEach((value,key)=>res.setHeader(key,value));res.end(Buffer.from(await result.arrayBuffer()));
+  }catch(e){console.error(e);res.statusCode=500;res.end('Preview error');}
+ });
+}
+const config={configFile:resolve('vite.netlify.config.ts'),plugins:[{name:'disposable-campaign-api',configureServer:attachDemoAPI,configurePreviewServer:attachDemoAPI}]};
+const server=production
+ ?await preview({...config,preview:{host:'127.0.0.1',port,strictPort:true}})
+ :await createServer({...config,server:{host:'127.0.0.1',port,strictPort:true}});
+if(!production)await server.listen();
+server.printUrls();
+if(production)console.log('Anteprima della build già presente in dist-netlify.');
 console.log('Campagna di prova in memoria. Account: DM o Lyria. Chiave di prova: Barovia-preview-only. Nessun dato online viene usato.');
 for(const signal of ['SIGINT','SIGTERM'])process.on(signal,async()=>{await server.close();await pg.close();process.exit(0);});

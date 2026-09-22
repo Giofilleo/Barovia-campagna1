@@ -7,8 +7,10 @@ import {resolve} from 'node:path';
 await mkdir('.sites-runtime/tests',{recursive:true});
 await build({entryPoints:['lib/server.ts'],bundle:true,platform:'node',format:'esm',outfile:'.sites-runtime/tests/server.mjs'});
 await build({entryPoints:['lib/campaign.ts'],bundle:true,platform:'node',format:'esm',outfile:'.sites-runtime/tests/campaign.mjs'});
+await build({entryPoints:['lib/session-flow.ts'],bundle:true,platform:'node',format:'esm',outfile:'.sites-runtime/tests/session-flow.mjs'});
 const {handleCampaign,passwordHash}=await import(resolve('.sites-runtime/tests/server.mjs'));
 const {dateParts,toMinutes}=await import(resolve('.sites-runtime/tests/campaign.mjs'));
+const {MAX_FLOW_BYTES,sessionFlowSizeError}=await import(resolve('.sites-runtime/tests/session-flow.mjs'));
 class Adapter {
  async transaction(work){this.db.exec('BEGIN');try{const result=await work(this);this.db.exec('COMMIT');return result;}catch(e){this.db.exec('ROLLBACK');throw e;}}
  constructor(){this.db=new DatabaseSync(':memory:');this.db.exec('PRAGMA foreign_keys=ON;');}
@@ -515,7 +517,6 @@ await test('A shared combat archive is readable by players, stays immutable in i
  assert.equal((await request('/api/media/'+uploaded.data.id,{cookie:lyria.cookie})).status,404);
 });
 
-// Insert before `await closeDatabase();` in tests/campaign-api.test.mjs.
 // These tests use the existing DB, env, request, dm/lyria fixtures and helpers.
 // The wrapper carries fault injection into the real transaction callback: a
 // throw after the first successful write must roll back in both PostgreSQL and SQLite.
@@ -661,14 +662,14 @@ await test('Flussi malformati o troppo grandi non modificano voce, versione o st
   ['troppe pagine per nodo',sessionFlow({nodes:[flowNode('a',{links:Array.from({length:101},(_,i)=>'pagina-'+i)})],edges:[]})],
   ['coordinata non numerica',sessionFlow({nodes:[flowNode('a',{x:'80'})],edges:[]})],
   ['coordinata non finita',sessionFlow({nodes:[flowNode('a',{x:Infinity})],edges:[]})],
-  ['coordinata negativa',sessionFlow({nodes:[flowNode('a',{y:-1})],edges:[]})],
-  ['coordinata fuori tela',sessionFlow({nodes:[flowNode('a',{x:10001})],edges:[]})],
+  ['coordinata oltre la precisione numerica',sessionFlow({nodes:[flowNode('a',{y:Number.MAX_SAFE_INTEGER+1})],edges:[]})],
+  ['coordinata negativa non rappresentabile',sessionFlow({nodes:[flowNode('a',{x:-Number.MAX_SAFE_INTEGER-1})],edges:[]})],
   ['titolo troppo lungo',sessionFlow({nodes:[flowNode('a',{title:'t'.repeat(161)})],edges:[]})],
   ['nota troppo lunga',sessionFlow({nodes:[flowNode('a',{notes:'n'.repeat(6001)})],edges:[]})],
   ['condizione troppo lunga',sessionFlow({edges:[{id:'lunga',from:'ingresso',to:'esito',condition:'c'.repeat(501)}]})],
   ['condizione vuota',sessionFlow({edges:[{id:'vuota',from:'ingresso',to:'esito',condition:' '}]})],
-  ['troppi nodi',sessionFlow({nodes:Array.from({length:101},(_,i)=>flowNode('n'+i)),edges:[]})],
-  ['troppi collegamenti',sessionFlow({edges:Array.from({length:201},(_,i)=>({id:'e'+i,from:'ingresso',to:'esito',condition:'Se '+i}))})],
+  ['troppi nodi',sessionFlow({nodes:Array.from({length:1001},(_,i)=>flowNode('n'+i)),edges:[]})],
+  ['troppi collegamenti',sessionFlow({edges:Array.from({length:3001},(_,i)=>({id:'e'+i,from:'ingresso',to:'esito',condition:'Se '+i}))})],
  ];
  for(const [label,prepFlow] of invalid){
   const result=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,title:'Questa modifica deve essere rifiutata',data:{...before.data,prepFlow}}});
@@ -682,11 +683,62 @@ await test('Flussi malformati o troppo grandi non modificano voce, versione o st
 });
 
 await test('Un flusso accetta dimensioni limite, ritorni a scene precedenti e una tela inizialmente vuota',async()=>{
- const nodes=Array.from({length:100},(_,i)=>flowNode('n'+i,{x:i*100,y:i*100}));nodes[0]={...nodes[0],title:'t'.repeat(160),notes:'n'.repeat(6000),x:0,y:10000};
- const edges=Array.from({length:200},(_,i)=>({id:'e'+i,from:'n'+(i%100),to:'n'+((i+1)%100),condition:i===0?'c'.repeat(500):'Se prendono la strada '+i}));
+ const nodes=Array.from({length:1000},(_,i)=>flowNode('n'+i,{x:(i-500)*1000,y:(i-400)*1200}));nodes[0]={...nodes[0],title:'t'.repeat(160),notes:'n'.repeat(6000),x:0,y:10000};
+ const edges=Array.from({length:3000},(_,i)=>({id:'e'+i,from:'n'+(i%1000),to:'n'+((i+1)%1000),condition:i===0?'c'.repeat(500):'Se prendono la strada '+i}));
  const flow=sessionFlow({nodes,edges});const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Piano ai limiti ammessi',['dm'],{section:'session',prepFlow:flow})});assert.equal(created.status,200,JSON.stringify(created.data));
  assert.deepEqual((await readFlow(created.data.id)).data.prepFlow,flow,'i dati ai limiti ammessi si conservano senza tagli silenziosi');
  const empty=sessionFlow({nodes:[],edges:[]});const blank=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Sessione ancora da preparare',['dm'],{section:'session',prepFlow:empty})});assert.equal(blank.status,200);assert.deepEqual((await readFlow(blank.data.id)).data.prepFlow,empty);
+});
+
+await test('Coordinate negative e lontane si conservano nel salvataggio, nelle revisioni e nei backup',async()=>{
+ const before=await readFlow(prepFlowId),flow=structuredClone(before.data.prepFlow);
+ flow.nodes[0].x=-1500000;flow.nodes[0].y=2800000;flow.nodes[1].x=700000;flow.nodes[1].y=-430000;
+ assert.equal((await request('/api/records',{method:'PUT',cookie:dm.cookie,data:{...before,data:{...before.data,prepFlow:flow}}})).status,200);
+ const saved=await readFlow(prepFlowId);assert.deepEqual(saved.data.prepFlow,flow);
+ const revisions=(await request('/api/revisions?id='+prepFlowId,{cookie:dm.cookie})).data.revisions;assert.deepEqual(revisions[0].data.prepFlow,before.data.prepFlow);
+ const backup=(await request('/api/export',{cookie:dm.cookie})).data;assert.deepEqual(backup.records.find(r=>r.id===prepFlowId).data.prepFlow,flow);
+});
+
+function flowWithByteSize(bytes,symbol='a'){
+ const flow=sessionFlow({nodes:Array.from({length:400},(_,i)=>flowNode('size-'+i,{notes:''})),edges:[]});
+ let remaining=bytes-Buffer.byteLength(JSON.stringify(flow),'utf8');
+ for(const node of flow.nodes){
+  const count=Math.min(Math.floor(6000/symbol.length),Math.floor(remaining/Buffer.byteLength(symbol,'utf8')));
+  node.notes=symbol.repeat(count);remaining-=count*Buffer.byteLength(symbol,'utf8');
+  const padding=Math.min(6000-node.notes.length,remaining);
+  node.notes+='a'.repeat(padding);remaining-=padding;
+  if(!remaining)break;
+ }
+ assert.equal(remaining,0);assert.equal(Buffer.byteLength(JSON.stringify(flow),'utf8'),bytes);
+ return flow;
+}
+
+await test('Il limite complessivo del flusso conta i byte UTF-8 e rifiuta modifiche senza alterare i dati salvati',async()=>{
+ assert.equal(MAX_FLOW_BYTES,2_000_000);
+ const before=await readFlow(prepFlowId),stored=await DB.prepare('SELECT * FROM records WHERE id = ?').bind(prepFlowId).first();
+ const revisions=(await DB.prepare('SELECT * FROM revisions WHERE record_id = ? ORDER BY id').bind(prepFlowId).all()).results;
+ const count=(await DB.prepare('SELECT count(*) n FROM records').first()).n;
+ for(const symbol of ['a','🦇']){
+  const flow=flowWithByteSize(MAX_FLOW_BYTES+1,symbol),sizeError=sessionFlowSizeError(flow);assert.match(sizeError,/2 MB/);
+  if(symbol==='🦇')assert(JSON.stringify(flow).length<MAX_FLOW_BYTES,'il limite deve contare i byte, non le unità UTF-16');
+  const input={...before,title:'Modifica troppo grande da rifiutare',data:{...before.data,prepFlow:flow}};
+  assert(JSON.stringify(input).length<2_500_000,'la richiesta raggiunge la validazione del flusso senza superare il limite globale');
+  const result=await request('/api/records',{method:'PUT',cookie:dm.cookie,data:input});assert.equal(result.status,400);assert.equal(result.data.error,sizeError);
+  assert.deepEqual(await DB.prepare('SELECT * FROM records WHERE id = ?').bind(prepFlowId).first(),stored);
+  assert.deepEqual((await DB.prepare('SELECT * FROM revisions WHERE record_id = ? ORDER BY id').bind(prepFlowId).all()).results,revisions);
+  const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:record('secret','Flusso troppo grande da non creare',['dm'],{prepFlow:flow})});assert.equal(created.status,400);assert.equal(created.data.error,sizeError);
+  assert.equal((await DB.prepare('SELECT count(*) n FROM records').first()).n,count);
+ }
+});
+
+await test('Un flusso di esattamente 2 MB si salva integro insieme alla descrizione massima della pagina',async()=>{
+ const flow=flowWithByteSize(MAX_FLOW_BYTES);assert.equal(sessionFlowSizeError(flow),null);
+ const input={...record('secret','Flusso al limite complessivo',['dm'],{section:'session',prepFlow:flow}),body:'b'.repeat(60000)};
+ assert(JSON.stringify(input).length<2_500_000,'resta spazio per la pagina che contiene il flusso');
+ const created=await request('/api/records',{method:'POST',cookie:dm.cookie,data:input});assert.equal(created.status,200,JSON.stringify(created.data));
+ const saved=await readFlow(created.data.id);assert.equal(saved.body,input.body);assert.deepEqual(saved.data.prepFlow,flow);
+ assert.equal(Buffer.byteLength(JSON.stringify(saved.data.prepFlow),'utf8'),MAX_FLOW_BYTES);
+ assert.equal(sessionFlowSizeError(flowWithByteSize(MAX_FLOW_BYTES,'🦇')),null,'anche un flusso UTF-8 esattamente al limite è valido');
 });
 
 await closeDatabase();

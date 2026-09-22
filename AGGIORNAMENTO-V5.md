@@ -23,6 +23,17 @@ Il modo più semplice per provare anche i salvataggi senza toccare la campagna �
 
 Se compare “port 5173 is already in use”, chiudi l’altra demo già in esecuzione. Non aggiungere le credenziali Supabase alla demo: non le usa.
 
+### Provare la versione compilata
+
+Per controllare la stessa versione che viene pubblicata online, esegui nella cartella del progetto:
+
+```sh
+npm run build:netlify
+npm run preview:demo -- --production
+```
+
+Apri **http://127.0.0.1:5174/** e usa gli stessi account di prova. Anche questa modalità usa soltanto dati temporanei. Dopo modifiche al codice, ripeti la compilazione e ricarica la pagina.
+
 ## Cosa cambia
 
 ### Una memoria della campagna tra le sessioni
@@ -54,17 +65,17 @@ Per evitare salvataggi troppo pesanti, un registro ha un limite di 2.000 eventi 
 
 ### Flussi di preparazione delle sessioni
 
-Apri **Schermo DM → Flussi di sessione → Nuovo flusso**. Dai un titolo alla sessione e scegli una prima diramazione già impostata oppure un foglio con una sola scena.
+Apri **Schermo DM → Flussi di sessione → Nuovo flusso**. Dai un titolo alla sessione e scegli uno schema con diramazioni oppure una sola scena. Il flusso si apre in un’area di lavoro a schermo intero: aggiunta delle schede, note generali e salvataggio restano sempre in alto. **Torna ai flussi** riporta all’elenco; le modifiche non salvate restano come bozza locale.
 
 - Aggiungi **Scene, Scelte, Note ed Esiti**. Seleziona una scheda per scriverne titolo e note, fino a 6.000 caratteri, e collegare le pagine originali della campagna: luoghi, personaggi, diario, appunti e Combat Log.
-- Trascina lo **sfondo** per spostare la visuale. Trascina una **scheda**, anche dal titolo o dal testo, per cambiarne la posizione; la maniglia resta utilizzabile anche con i tasti freccia. I comandi di zoom mantengono il centro della visuale e **Mostra tutto il flusso** centra l’intero diagramma. La vista **Scaletta** permette di leggere e modificare anche dal telefono. Lo spostamento della visuale non richiede un salvataggio; quello delle schede sì.
-- Premi **Collega / Crea diramazione** su una scheda. Scrivi la condizione **Se…** e scegli la destinazione **Allora…**. Puoi creare più possibilità e percorsi che ritornano a una scena precedente. Per un passaggio incondizionato scrivi “Sempre”.
+- La mappa non ha bordi predefiniti e si estende in tutte le direzioni, anche a coordinate negative. Trascina lo **sfondo**, oppure usa rotella o trackpad, per spostare la visuale. Con **Ctrl/⌘ + rotella** cambi lo zoom attorno al puntatore. Trascina una **scheda**, anche dal titolo o dal testo, per cambiarne la posizione; la maniglia resta utilizzabile anche con i tasti freccia. I comandi di zoom mantengono il centro della visuale e **Mostra tutto il flusso** centra l’intero diagramma. Trascinando una scheda verso il bordo dello schermo, la visuale continua a scorrere. I dettagli hanno il proprio pannello: **Torna alla mappa** lo chiude. La vista **Scaletta** permette di leggere e modificare anche dal telefono. Lo spostamento della visuale non richiede un salvataggio; quello delle schede sì.
+- Premi **Collega / Crea diramazione** su una scheda e scrivi la condizione **Se…**. Con **Nuova scheda → Crea scheda e diramazione** aggiungi insieme il nodo di destinazione e la freccia: puoi lasciare il titolo provvisorio e compilare subito il nuovo nodo. Con **Scheda esistente** scegli invece una destinazione già presente. Puoi creare più possibilità e percorsi che ritornano a una scena precedente. Per un passaggio incondizionato scrivi “Sempre”.
 - Seleziona una freccia per cambiarne condizione o destinazione. Rimuovere una scheda rimuove anche le sue frecce, senza eliminare le pagine della campagna richiamate.
 - Premi **Salva flusso** per conservarlo nella campagna. Le modifiche non salvate hanno una bozza locale separata per account, recuperabile esplicitamente. Se il piano è cambiato su un altro dispositivo puoi conservare la bozza come copia e confrontarla con l’originale.
 
 I flussi sono **sempre riservati al DM**, compresi testi, collegamenti, revisioni ed esportazioni. I collegamenti alle pagine sono navigabili in entrambe le direzioni per il DM; non rivelano il piano ai giocatori. Un collegamento rimosso da una singola scheda può restare fra i collegamenti generali della pagina, gestibili dal normale editor.
 
-Ogni flusso contiene fino a **100 schede e 200 frecce**. Non esegue automaticamente gli eventi della storia: serve a preparare possibilità. Dopo la sessione, registra nel diario ciò che è realmente accaduto. I flussi salvati rientrano nelle copie di sicurezza esistenti e non richiedono nuove tabelle.
+Lo spazio della mappa non impone un limite al numero di righe o colonne. Ogni flusso può contenere fino a **1.000 schede e 3.000 frecce**; questi limiti non restringono il campo navigabile. Il contenuto complessivo di un flusso può occupare fino a 2 MB: se li supera, un messaggio chiede di ridurre il contenuto o dividerlo in più flussi. Nessun dato viene troncato. Vengono disegnate solo le schede vicine alla visuale per mantenere reattiva la mappa. Non esegue automaticamente gli eventi della storia: serve a preparare possibilità. Dopo la sessione, registra nel diario ciò che è realmente accaduto. I flussi salvati rientrano nelle copie di sicurezza esistenti e non richiedono nuove tabelle.
 
 ### Rifiniture e protezione dei contenuti
 
@@ -122,12 +133,20 @@ Dopo la distribuzione fai ricaricare completamente la pagina a tutti, soprattutt
 
 ## Verifiche e limiti della consegna
 
-Risultati: compilazione TypeScript e build Vite riuscite; **76 test automatici superati** (52 test delle API su PostgreSQL temporaneo con PGlite e 24 test su combattimenti, percorsi, trasferimenti e anteprime). Sono compresi permessi, modifiche concorrenti, vecchi editor, flussi non validi e salvataggi atomici con errori di scrittura simulati. Anche i dati della demo sono verificati da una procedura separata, senza avviare il server.
+Risultati: compilazione TypeScript e build Vite riuscite; **79 test automatici superati** (55 test delle API su PostgreSQL temporaneo con PGlite e 24 test su combattimenti, percorsi, trasferimenti e anteprime). Sono compresi permessi, modifiche concorrenti, vecchi editor, flussi non validi e salvataggi atomici con errori di scrittura simulati. Anche i dati della demo sono verificati da una procedura separata, senza avviare il server.
 
-Rispetto alla build della V4, il JavaScript iniziale scende da 617.531 a 484.685 byte (**−21,5%**); compresso con lo stesso metodo gzip, da 183.233 a 146.543 byte (**−20,0%**). Il codice JavaScript complessivo è di 726.040 byte. Il CSS iniziale è di 273.639 byte (48.376 con gzip); il CSS completo è di 351.769 byte. Flussi, strumenti DM e lettore dei combattimenti caricano codice e stili specifici quando vengono aperti. Queste sono misure dei file prodotti, non tempi di caricamento su una connessione reale.
+Rispetto alla build della V4, il JavaScript iniziale scende da 617.531 a 484.800 byte (**−21,5%**); compresso con lo stesso metodo gzip, da 183.233 a 146.589 byte (**−20,0%**). Il codice JavaScript complessivo è di 732.522 byte. Il CSS iniziale è di 273.723 byte (48.410 con gzip); il CSS completo è di 360.095 byte. Flussi, strumenti DM e lettore dei combattimenti caricano codice e stili specifici quando vengono aperti. Queste sono misure dei file prodotti, non tempi di caricamento su una connessione reale.
 
 La demo locale è stata ispezionata nel browser su desktop e a 390 pixel di larghezza. Sono stati provati creazione, note, rimandi a pagine, diramazioni, salvataggio e riapertura dei flussi, recupero di una bozza, aggiornamento dei PF nel tracker, lettura dei resoconti, filtri e navigazione mobile. La vista giocatore è controllata anche dalle prove automatiche: riceve i resoconti condivisi e non riceve i flussi del DM. La campagna reale e il suo Supabase non sono stati modificati; prima del passaggio definitivo resta il tuo collaudo dei contenuti reali nell’ambiente scelto.
 
 ### Verifica della navigazione dei flussi
 
 Provati nella demo locale il trascinamento dello sfondo senza modifiche ai dati, lo spostamento dal testo di una scheda a due livelli di zoom, le frecce, il pulsante Collega, il movimento da tastiera e la conservazione della posizione dopo salvataggio e riapertura. Controllati anche il layout a 390 px e l’assenza di scorrimento orizzontale della pagina. Il trascinamento è verificato con il mouse; i gesti su un dispositivo touch fisico restano da provare.
+
+### Verifica dell’area di lavoro a schermo intero
+
+Verificati l’aggiunta consecutiva di dieci note senza scorrere la pagina, la creazione di un nuovo nodo direttamente dalla diramazione, il recupero della bozza e i salvataggi oltre i precedenti bordi. Verificati anche il recupero delle modifiche dopo un primo salvataggio, lo zoom graduale su schede lontane e il collegamento a una scheda esistente. A 390 px i comandi restano visibili e il pannello dei dettagli scorre separatamente; spostamento delle schede e navigazione non aprono il pannello. I test API includono 1.000 schede e 3.000 frecce, coordinate negative o lontane, revisioni e backup, il salvataggio al limite di 2 MB e il rifiuto senza perdita di dati oltre il limite.
+
+### Verifica della finestra nella versione compilata
+
+Riprodotto il difetto che spostava il flow-chart di metà schermo verso l’alto e a sinistra: nella build ottimizzata rimaneva attiva la traslazione della finestra centrata. L’editor ora usa una variante a schermo intero senza le classi di centratura. Verificata la build di produzione: finestra a coordinate (0, 0), larga e alta quanto lo schermo a 1440 × 900 e 390 × 844; posizione invariata dopo selezione delle schede e chiusura/riapertura. La finestra «Nuovo flusso» rimane correttamente centrata.
