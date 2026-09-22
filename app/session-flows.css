@@ -20,7 +20,7 @@
 .flow-viewport.is-dragging .flow-node{transition:none}
 
 /* Dedicated workspace: only the details and outline scroll, never the command bars. */
-.flow-editor-dialog[data-slot=dialog-content]{position:fixed;inset:0;top:0;left:0;width:100vw;max-width:none!important;height:100dvh;max-height:none!important;padding:0!important;margin:0;border:0;border-radius:0;transform:none;translate:none;animation:none!important;display:flex;overflow:hidden;gap:0;background:#1b181e}
+.flow-editor-dialog[data-slot=dialog-content]{position:fixed;inset:0;top:0;left:0;width:100vw;max-width:none!important;height:100dvh;max-height:none!important;padding:0!important;margin:0;border:0;border-radius:0;display:flex;overflow:hidden;gap:0;background:#1b181e}
 .flow-editor-dialog .flow-workspace{display:flex;flex-direction:column;flex:1;width:100%;height:100%;min-height:0;overflow:hidden;border:0;border-radius:0}
 .flow-editor-dialog .flow-document-head{position:relative;top:auto;display:flex;align-items:center;flex-wrap:nowrap;flex-shrink:0;gap:18px;padding:12px 20px;min-height:76px;background:#251d25;border-bottom:1px solid var(--flow-line);backdrop-filter:none}
 .flow-editor-dialog .flow-document-title{flex:1;min-width:0;flex-basis:auto}

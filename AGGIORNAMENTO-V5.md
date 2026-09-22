@@ -23,6 +23,17 @@ Il modo più semplice per provare anche i salvataggi senza toccare la campagna �
 
 Se compare “port 5173 is already in use”, chiudi l’altra demo già in esecuzione. Non aggiungere le credenziali Supabase alla demo: non le usa.
 
+### Provare la versione compilata
+
+Per controllare la stessa versione che viene pubblicata online, esegui nella cartella del progetto:
+
+```sh
+npm run build:netlify
+npm run preview:demo -- --production
+```
+
+Apri **http://127.0.0.1:5174/** e usa gli stessi account di prova. Anche questa modalità usa soltanto dati temporanei. Dopo modifiche al codice, ripeti la compilazione e ricarica la pagina.
+
 ## Cosa cambia
 
 ### Una memoria della campagna tra le sessioni
@@ -124,7 +135,7 @@ Dopo la distribuzione fai ricaricare completamente la pagina a tutti, soprattutt
 
 Risultati: compilazione TypeScript e build Vite riuscite; **79 test automatici superati** (55 test delle API su PostgreSQL temporaneo con PGlite e 24 test su combattimenti, percorsi, trasferimenti e anteprime). Sono compresi permessi, modifiche concorrenti, vecchi editor, flussi non validi e salvataggi atomici con errori di scrittura simulati. Anche i dati della demo sono verificati da una procedura separata, senza avviare il server.
 
-Rispetto alla build della V4, il JavaScript iniziale scende da 617.531 a 484.685 byte (**−21,5%**); compresso con lo stesso metodo gzip, da 183.233 a 146.541 byte (**−20,0%**). Il codice JavaScript complessivo è di 732.387 byte. Il CSS iniziale è di 273.617 byte (48.373 con gzip); il CSS completo è di 360.039 byte. Flussi, strumenti DM e lettore dei combattimenti caricano codice e stili specifici quando vengono aperti. Queste sono misure dei file prodotti, non tempi di caricamento su una connessione reale.
+Rispetto alla build della V4, il JavaScript iniziale scende da 617.531 a 484.800 byte (**−21,5%**); compresso con lo stesso metodo gzip, da 183.233 a 146.589 byte (**−20,0%**). Il codice JavaScript complessivo è di 732.522 byte. Il CSS iniziale è di 273.723 byte (48.410 con gzip); il CSS completo è di 360.095 byte. Flussi, strumenti DM e lettore dei combattimenti caricano codice e stili specifici quando vengono aperti. Queste sono misure dei file prodotti, non tempi di caricamento su una connessione reale.
 
 La demo locale è stata ispezionata nel browser su desktop e a 390 pixel di larghezza. Sono stati provati creazione, note, rimandi a pagine, diramazioni, salvataggio e riapertura dei flussi, recupero di una bozza, aggiornamento dei PF nel tracker, lettura dei resoconti, filtri e navigazione mobile. La vista giocatore è controllata anche dalle prove automatiche: riceve i resoconti condivisi e non riceve i flussi del DM. La campagna reale e il suo Supabase non sono stati modificati; prima del passaggio definitivo resta il tuo collaudo dei contenuti reali nell’ambiente scelto.
 
@@ -135,3 +146,7 @@ Provati nella demo locale il trascinamento dello sfondo senza modifiche ai dati,
 ### Verifica dell’area di lavoro a schermo intero
 
 Verificati l’aggiunta consecutiva di dieci note senza scorrere la pagina, la creazione di un nuovo nodo direttamente dalla diramazione, il recupero della bozza e i salvataggi oltre i precedenti bordi. Verificati anche il recupero delle modifiche dopo un primo salvataggio, lo zoom graduale su schede lontane e il collegamento a una scheda esistente. A 390 px i comandi restano visibili e il pannello dei dettagli scorre separatamente; spostamento delle schede e navigazione non aprono il pannello. I test API includono 1.000 schede e 3.000 frecce, coordinate negative o lontane, revisioni e backup, il salvataggio al limite di 2 MB e il rifiuto senza perdita di dati oltre il limite.
+
+### Verifica della finestra nella versione compilata
+
+Riprodotto il difetto che spostava il flow-chart di metà schermo verso l’alto e a sinistra: nella build ottimizzata rimaneva attiva la traslazione della finestra centrata. L’editor ora usa una variante a schermo intero senza le classi di centratura. Verificata la build di produzione: finestra a coordinate (0, 0), larga e alta quanto lo schermo a 1440 × 900 e 390 × 844; posizione invariata dopo selezione delle schede e chiusura/riapertura. La finestra «Nuovo flusso» rimane correttamente centrata.
